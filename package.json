@@ -1,0 +1,23 @@
+{
+  "name": "agentproof",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.18.0",
+  "engines": {
+    "node": "26.5.0",
+    "pnpm": "11.18.0"
+  },
+  "scripts": {
+    "dev": "python scripts/manage.py dev",
+    "lint": "pnpm --filter web lint",
+    "typecheck": "pnpm --filter @agentproof/contracts typecheck && pnpm --filter web typecheck",
+    "build": "pnpm --filter web build",
+    "format:check": "prettier --check .",
+    "format": "prettier --write .",
+    "contracts": "python scripts/manage.py contracts"
+  },
+  "devDependencies": {
+    "prettier": "3.9.10",
+    "typescript": "5.9.3"
+  }
+}

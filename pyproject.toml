@@ -1,0 +1,39 @@
+[project]
+name = "agentproof-tooling"
+version = "0.1.0"
+requires-python = ">=3.13,<3.14"
+dependencies = []
+
+[tool.uv.workspace]
+members = ["apps/api", "apps/worker", "apps/runner"]
+
+[dependency-groups]
+dev = [
+  "ruff>=0.12,<1", "mypy>=1.16,<2", "pytest>=8.4,<10",
+  "pytest-asyncio>=1,<2", "httpx>=0.28,<1", "PyYAML>=6,<7",
+  "types-PyYAML>=6,<7", "detect-secrets==1.5.0",
+]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "ASYNC"]
+
+[tool.mypy]
+plugins = ["pydantic.mypy"]
+python_version = "3.13"
+strict = true
+files = ["apps/api", "apps/worker", "apps/runner", "scripts", "tests/unit"]
+
+[[tool.mypy.overrides]]
+module = ["detect_secrets.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests/unit"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "-ra --strict-markers"
+markers = ["integration: needs real PostgreSQL and Redis"]

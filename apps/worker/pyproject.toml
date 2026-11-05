@@ -1,0 +1,17 @@
+[project]
+name = "agentproof-worker"
+version = "0.1.0"
+description = "AgentProof orchestration scaffold; job execution is disabled"
+readme = "README.md"
+requires-python = ">=3.13,<3.14"
+dependencies = ["arq>=0.26,<1"]
+
+[project.scripts]
+agentproof-worker = "agentproof_worker.main:main"
+
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/agentproof_worker"]

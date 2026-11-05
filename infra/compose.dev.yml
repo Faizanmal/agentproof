@@ -1,0 +1,73 @@
+name: agentproof-dev
+services:
+  postgres:
+    image: postgres:16.11-bookworm
+    environment:
+      POSTGRES_USER: agentproof
+      POSTGRES_DB: agentproof
+      # Deliberately public local-only credentials; never use in production.
+      POSTGRES_PASSWORD: agentproof_local_only # pragma: allowlist secret -- public local-only fixture
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agentproof -d agentproof"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    security_opt: ["no-new-privileges:true"]
+  redis:
+    image: redis:7.4.5-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    security_opt: ["no-new-privileges:true"]
+  api:
+    profiles: ["app"]
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile
+    environment:
+      APP_ENV: development
+      DATABASE_URL: postgresql+asyncpg://agentproof:agentproof_local_only@postgres:5432/agentproof # pragma: allowlist secret -- public local-only fixture
+      REDIS_URL: redis://redis:6379/0
+    ports: ["127.0.0.1:${API_PORT:-8000}:8000"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    read_only: true
+    tmpfs: ["/tmp:size=32m"]
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health/ready', timeout=5)",
+        ]
+      interval: 10s
+      timeout: 6s
+      retries: 10
+  web:
+    profiles: ["app"]
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
+    ports: ["127.0.0.1:${WEB_PORT:-3000}:3000"]
+    depends_on:
+      api: { condition: service_healthy }
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+volumes:
+  postgres-data:
+  redis-data:

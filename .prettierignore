@@ -1,0 +1,9 @@
+pnpm-lock.yaml
+uv.lock
+packages/contracts/openapi.json
+packages/contracts/src/schema.d.ts
+.cache
+.venv*
+apps/web/.next
+apps/web/next-env.d.ts
+docs/evidence

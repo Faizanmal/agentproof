@@ -1,0 +1,36 @@
+{
+  "captured_at": "2026-11-05T18:39:09.285374+00:00",
+  "api_origin": "http://127.0.0.1:18000",
+  "web_origin": "http://127.0.0.1:13000",
+  "liveness": {
+    "status_code": 200,
+    "body": {
+      "status": "alive"
+    },
+    "request_id": "b6808b00-a51d-4005-8ff6-25ebb3257bbb"
+  },
+  "readiness": {
+    "status_code": 200,
+    "body": {
+      "status": "ready",
+      "dependencies": {
+        "postgres": "up",
+        "redis": "up"
+      }
+    },
+    "request_id": "5159d7d4-d782-44c2-879d-763450560b32"
+  },
+  "web_paths_verified": [
+    "/",
+    "/auth",
+    "/projects",
+    "/does-not-exist"
+  ],
+  "proxy_liveness": {
+    "status_code": 200,
+    "body": {
+      "status": "alive"
+    }
+  },
+  "verification": "HTTP assertions only; no browser execution"
+}

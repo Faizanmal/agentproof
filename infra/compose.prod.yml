@@ -1,0 +1,4 @@
+# Intentionally inert. No production services or default credentials in Phase 01.
+# Requires a reviewed production design and explicit resource/deployment approval.
+name: agentproof-production-placeholder
+services: {}
