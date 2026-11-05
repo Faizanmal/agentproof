@@ -1,11 +1,10 @@
 # Phase
 
-Phase 01 — Repository foundation. **PARTIAL** (2026-11-05–06, Asia/Calcutta).
+Phase 01 — Repository foundation. **PASS** (revalidated 2026-11-06, Asia/Calcutta).
 
-The implementation and functional checks pass on documented alternate loopback
-ports. The exact default-port acceptance check remains BLOCKED: unrelated existing
-services own 3000, 8000 and 5432. No unrelated process was stopped. No later phase
-has started.
+The UI and API now pass the default-port checks on 3000 and 8000. PostgreSQL uses
+15432, explicitly accepted by the user on 2026-11-06; the unrelated PostgreSQL
+service on 5432 remains untouched. The earlier port blocker is resolved.
 
 # implemented files
 
@@ -72,9 +71,7 @@ PNPM uses pnpm.cmd; portable scripts select that shim automatically.
 - One upstream deprecation warning: Starlette TestClient currently warns about
   httpx compatibility. Tests still pass; no warning is hidden.
 
-Acceptance gates: 1 PASS; 2 PASS with documented database host-port override;
-3 PARTIAL (alternate port PASS, exact localhost:8000 BLOCKED); 4 PASS using the
-alternate dev port; 5 PASS; 6 PASS; 7 PASS. Overall phase remains PARTIAL.
+Acceptance gates: 1 PASS; 2 PASS with the explicitly accepted database host-port override; 3 PASS on localhost:8000; 4 PASS on localhost:3000; 5 PASS; 6 PASS; 7 PASS. Overall Phase 01 is PASS.
 
 # real external dependencies verified
 
@@ -108,8 +105,7 @@ left untouched. The documented dev supervisor also passed HTTP smoke checks.
 
 # remaining blockers
 
-- Exact default-port runtime check: free ports 3000/8000/5432, or explicitly accept
-  documented alternatives. Existing unrelated applications were left untouched.
+- Default UI/API port blocker resolved: default-port HTTP smoke and curl liveness pass. The database override to 15432 was explicitly accepted by the user.
 - Vultr external verification: securely configure VULTR_INFERENCE_API_KEY and
   select/verify a real model in its later phase; no cloud provisioning authorized.
 - Browser/visual QA requires a disposable broker-managed sandbox. It was not
@@ -117,6 +113,13 @@ left untouched. The documented dev supervisor also passed HTTP smoke checks.
 
 # next phase
 
-No next-phase implementation started. Resolve or explicitly accept the default-port
-verification deviation before progressing. Subsequent authorization/project work
-requires its own prompt and contract/gate review. Production deployment remains unauthorized.
+Phase 02 data/authentication implementation is authorized by the supplied prompt. Its prerequisite Phase 01 gate now passes. No production deployment is authorized.
+
+## Gate revalidation — 2026-11-06
+
+The user freed ports 3000 and 8000 and explicitly accepted PostgreSQL port 15432.
+Executed python scripts/manage.py smoke on the default ports and curl.exe -fsS
+http://localhost:8000/api/v1/health/live: both PASS. The first startup probe observed
+a transient PostgreSQL-unavailable 503; readiness recovered and the complete smoke
+passed. Refreshed docs/evidence/phase01/runtime.json from actual HTTP responses.
+The historical alternate-port command records above are retained for provenance.

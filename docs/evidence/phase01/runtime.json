@@ -1,13 +1,13 @@
 {
-  "captured_at": "2026-11-05T18:39:09.285374+00:00",
-  "api_origin": "http://127.0.0.1:18000",
-  "web_origin": "http://127.0.0.1:13000",
+  "captured_at": "2026-11-05T19:25:35.729613+00:00",
+  "api_origin": "http://127.0.0.1:8000",
+  "web_origin": "http://127.0.0.1:3000",
   "liveness": {
     "status_code": 200,
     "body": {
       "status": "alive"
     },
-    "request_id": "b6808b00-a51d-4005-8ff6-25ebb3257bbb"
+    "request_id": "de9ca325-5529-4d3b-9aa5-f2752055bf27"
   },
   "readiness": {
     "status_code": 200,
@@ -18,7 +18,7 @@
         "redis": "up"
       }
     },
-    "request_id": "5159d7d4-d782-44c2-879d-763450560b32"
+    "request_id": "3e093d60-8ca3-4435-9e96-1bba5742bb9a"
   },
   "web_paths_verified": [
     "/",
