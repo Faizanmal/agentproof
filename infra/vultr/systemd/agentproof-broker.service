@@ -4,6 +4,8 @@ Documentation=file:///opt/agentproof/infra/sandbox/README.md
 After=network-online.target docker.service
 Wants=network-online.target
 Requires=docker.service
+StartLimitIntervalSec=60
+StartLimitBurst=5
 
 [Service]
 Type=simple
@@ -11,12 +13,9 @@ User=root
 Group=root
 WorkingDirectory=/opt/agentproof
 EnvironmentFile=/etc/agentproof/broker.env
-# Prefer module entry so a broken console-script shebang is easier to diagnose.
-ExecStart=/opt/agentproof/.venv-broker/bin/python -m agentproof_broker.main
+ExecStart=/opt/agentproof/.venv-broker/bin/python -m agentproof_broker
 Restart=on-failure
 RestartSec=3
-StartLimitIntervalSec=60
-StartLimitBurst=5
 TimeoutStopSec=30
 NoNewPrivileges=true
 # Do not set ProtectHome=true: uv-managed CPython may live under /root/.local
@@ -24,7 +23,6 @@ NoNewPrivileges=true
 ProtectSystem=full
 PrivateTmp=true
 ReadWritePaths=/var/lib/agentproof-broker /opt/agentproof/.venv-broker /opt/agentproof/uv-python
-# Docker Engine socket for disposable runners.
 SupplementaryGroups=docker
 
 [Install]
