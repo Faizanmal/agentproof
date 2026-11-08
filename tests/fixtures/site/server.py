@@ -167,12 +167,19 @@ def _account(request: Request, connection: sqlite3.Connection) -> sqlite3.Row | 
     token = request.cookies.get("agentproof_fixture_session", "")
     if not token:
         return None
+    digest = hashlib.sha256(token.encode()).hexdigest()
     row = connection.execute(
         "SELECT a.* FROM sessions s JOIN accounts a ON a.id=s.account_id "
         "WHERE s.token_hash=? AND s.expires_at>?",
-        (hashlib.sha256(token.encode()).hexdigest(), _now()),
+        (digest, _now()),
     ).fetchone()
-    return row  # type: ignore[no-any-return]
+    if row is not None:
+        return row  # type: ignore[no-any-return]
+    # Registration sets this cookie to the raw verification token before a session exists.
+    return connection.execute(  # type: ignore[no-any-return]
+        "SELECT a.* FROM mailbox m JOIN accounts a ON a.id=m.account_id WHERE m.token_hash=?",
+        (digest,),
+    ).fetchone()
 
 
 def _escape(value: object) -> str:

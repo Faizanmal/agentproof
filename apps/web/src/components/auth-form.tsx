@@ -8,7 +8,6 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
   const router = useRouter();
   const [message, setMessage] = useState("Checking session…");
   const [busy, setBusy] = useState(false);
-  const [verificationUrl, setVerificationUrl] = useState<string | null>(null);
   const register = mode === "register";
 
   useEffect(() => {
@@ -30,7 +29,6 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
     const form = event.currentTarget;
     const values = new FormData(form);
     setBusy(true);
-    setVerificationUrl(null);
     setMessage(register ? "Creating your account…" : "Signing in…");
     try {
       const api = createApiClient();
@@ -44,27 +42,22 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
       if (result.data) {
         form.reset();
         setMessage(register
-          ? "Account created. Verify your email before approving a plan or starting a run."
+          ? "Account created. Check your email for a one-use verification link before approving a plan or starting a run. You can resend it from Settings if needed."
           : "Signed in. Opening your workspace…");
-        if (register) setVerificationUrl("pending");
-        else {
+        if (!register) {
           const next = new URLSearchParams(window.location.search).get("next");
           router.replace(next?.startsWith("/app") ? next : "/app");
         }
       } else {
         const status = result.response.status;
-        setMessage(status === 409 ? "An account with this email already exists. Try signing in." : status === 429 ? "Too many attempts. Wait a little and try again." : status === 503 && register ? "Registration is unavailable because email delivery or session signing is not configured." : status === 401 ? "Email or password was not accepted." : `Could not ${register ? "create account" : "sign in"} (HTTP ${status}).`);
+        const code = typeof result.error === "object" && result.error && "code" in result.error
+          ? String((result.error as { code?: string }).code ?? "")
+          : "";
+        setMessage(status === 409 ? "An account with this email already exists. Try signing in." : status === 429 ? "Too many attempts. Wait a little and try again." : code === "MAIL_NOT_CONFIGURED" || (status === 503 && register) ? "Registration is unavailable because email delivery or session signing is not configured." : status === 401 ? "Email or password was not accepted." : `Could not ${register ? "create account" : "sign in"} (HTTP ${status}).`);
       }
     } catch {
       setMessage("The API is unavailable. Your form was not submitted; retry when connection is restored.");
     } finally { setBusy(false); }
-  }
-
-  async function openVerification() {
-    const result = await createApiClient().GET("/api/v1/dev/mail").catch(() => undefined);
-    const url = result?.data?.verification_url ?? result?.data?.url ?? null;
-    if (url) setVerificationUrl(url);
-    else setMessage("The development mailbox is unavailable. Check the configured email delivery service.");
   }
 
   return (
@@ -84,8 +77,6 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
         {register && <p className="form-hint">Use at least 12 characters. Never reuse a test-site password here.</p>}
         <button className="button primary auth-submit" disabled={busy}>{busy ? "Please wait…" : register ? "Create account" : "Sign in"}</button>
       </form>
-      {verificationUrl === "pending" && <button className="button secondary" onClick={openVerification}>Open development verification email</button>}
-      {verificationUrl && verificationUrl !== "pending" && <a className="button secondary" href={verificationUrl}>Verify email</a>}
       {!register && (
         <p className="auth-switch">
           <Link href="/auth/forgot">Forgot password?</Link>

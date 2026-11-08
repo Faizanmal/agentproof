@@ -192,11 +192,17 @@ async def fetch_proof(
         status, body = await asyncio.to_thread(
             _read_proof, again[0], parts.port or 443, parts.hostname or "", parts.scheme
         )
-        if status != 200 or not 1 <= len(body) <= 128:
-            raise HTTPException(409, "VERIFICATION_FAILED")
+        if status == 404:
+            raise HTTPException(409, "PROOF_NOT_FOUND")
+        if status != 200:
+            raise HTTPException(409, "PROOF_HTTP_ERROR")
+        if not 1 <= len(body) <= 128:
+            raise HTTPException(409, "PROOF_EMPTY_OR_INVALID")
         return body.decode("ascii").strip()
+    except HTTPException:
+        raise
     except (OSError, UnicodeError, http.client.HTTPException):
-        raise HTTPException(409, "VERIFICATION_FAILED") from None
+        raise HTTPException(409, "PROOF_FETCH_ERROR") from None
 
 
 async def fetch_txt(normalized_origin: str, config: Settings) -> list[str]:
@@ -211,6 +217,10 @@ async def fetch_txt(normalized_origin: str, config: Settings) -> list[str]:
             value = b"".join(record.strings)
             if len(value) <= 128:
                 values.append(value.decode("ascii"))
+        if not values:
+            raise HTTPException(409, "PROOF_NOT_FOUND")
         return values
+    except HTTPException:
+        raise
     except (dns.exception.DNSException, UnicodeError):
-        raise HTTPException(409, "VERIFICATION_FAILED") from None
+        raise HTTPException(409, "PROOF_FETCH_ERROR") from None

@@ -98,11 +98,17 @@ async def test_https_proof_pins_connection_and_rejects_redirect(
     assert await targets.fetch_proof("https://owned.example") == "single-use-token"
     read.assert_called_once_with("8.8.8.8", 443, "owned.example", "https")
     read.return_value = (302, b"single-use-token")
-    with pytest.raises(HTTPException):
+    with pytest.raises(HTTPException) as redirected:
         await targets.fetch_proof("https://owned.example")
+    assert redirected.value.detail == "PROOF_HTTP_ERROR"
+    read.return_value = (404, b"missing")
+    with pytest.raises(HTTPException) as missing:
+        await targets.fetch_proof("https://owned.example")
+    assert missing.value.detail == "PROOF_NOT_FOUND"
     read.side_effect = OSError("untrusted TLS")
-    with pytest.raises(HTTPException):
+    with pytest.raises(HTTPException) as fetch_error:
         await targets.fetch_proof("https://owned.example")
+    assert fetch_error.value.detail == "PROOF_FETCH_ERROR"
 
 
 async def test_rebinding_never_contacts_private_decoy(monkeypatch: pytest.MonkeyPatch) -> None:

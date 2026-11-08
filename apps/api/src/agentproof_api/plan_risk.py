@@ -81,6 +81,10 @@ def assess(
         if step.action in {"click", "fill", "select", "check", "uncheck"}:
             if any(word in name for word in PROHIBITED):
                 raise PlanRejected("PROHIBITED_SIDE_EFFECT")
+            if step.value_ref and step.value_ref.startswith("credential:"):
+                # Broker credential delivery is not wired for runner execution yet.
+                # Reject rather than approve a plan that cannot run honestly.
+                raise PlanRejected("AUTHENTICATED_TESTING_UNSUPPORTED")
             fixture = (
                 demo_allowed(base_origin, config)
                 and policy.side_effect_rules.fixture_forms
@@ -88,10 +92,6 @@ def assess(
             )
             if step.action in {"fill", "select", "check", "uncheck"} and not fixture:
                 raise PlanRejected("FIXTURE_PERMISSION_REQUIRED")
-            if step.value_ref and step.value_ref.startswith("credential:"):
-                if not scope.credential_ref_id:
-                    raise PlanRejected("CREDENTIAL_SCOPE_DENIED")
-                reasons.add("TEST_CREDENTIAL_LOGIN")
             if step.action == "click":
                 # Non-fixture clicks require an exact selector reviewed in TargetPolicy.
                 if not fixture and not (

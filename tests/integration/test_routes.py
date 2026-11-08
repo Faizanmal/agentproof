@@ -183,7 +183,10 @@ async def test_register_login_refresh_replay_logout(environment: dict[str, Any])
         "/api/v1/auth/login", json={"email": "OWNER@example.com", "password": PASSWORD}
     )
     assert response.status_code == 200, response.text
-    client.headers["X-CSRF-Token"] = response.json()["csrf_token"]
+    # Refresh CSRF from the refresh cookie the way the browser client does before logout.
+    csrf = await client.get("/api/v1/auth/csrf")
+    assert csrf.status_code == 200
+    client.headers["X-CSRF-Token"] = csrf.json()["csrf_token"]
     assert (await client.post("/api/v1/auth/logout", json={})).status_code == 204
     assert (await client.get("/api/v1/auth/me")).status_code == 401
     async with environment["factory"]() as session:
@@ -568,7 +571,8 @@ async def test_concurrent_idempotent_creation_and_cancellation(environment: dict
         ) as client,
     ):
         env = {"client": client, "factory": app.state.session_factory}
-        _, pid, plid, _ = await fixture_run(env, "idempotency-race@example.com")
+        _, pid, plid, seeded = await fixture_run(env, "idempotency-race@example.com")
+        assert (await client.post(f"/api/v1/runs/{seeded}/cancel", json={})).status_code == 202
 
         async def start() -> httpx.Response:
             return await client.post(

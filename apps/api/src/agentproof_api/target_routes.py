@@ -81,16 +81,29 @@ async def challenge(
         .mappings()
         .one()
     )
-    instructions = (
-        "Owner attestation is required; only the administrative demo allowlist is eligible."
-        if body.method == "demo"
-        else "Publish the exact token at "
-        + (
-            "_agentproof-verification." + (urlsplit(normalized).hostname or "") + " TXT"
-            if body.method == "dns-txt"
-            else normalized + "/.well-known/agentproof-verification"
+    ttl_minutes = max(1, config.challenge_ttl_seconds // 60)
+    if body.method == "demo":
+        instructions = (
+            "Owner attestation is required; only the administrative demo allowlist is eligible. "
+            f"This challenge expires in {ttl_minutes} minutes and can be used once."
         )
-    )
+    elif body.method == "dns-txt":
+        host = urlsplit(normalized).hostname or ""
+        instructions = (
+            f"Create a DNS TXT record at _agentproof-verification.{host} with exactly this "
+            f"token (no quotes). Wait for DNS to propagate, then verify. Expires in "
+            f"{ttl_minutes} minutes; used challenges cannot be reused—issue a fresh one after "
+            "expiry or a failed attempt that consumed nothing."
+        )
+    else:
+        instructions = (
+            f"Publish the exact token as a single-line text/plain file at "
+            f"{normalized}/.well-known/agentproof-verification (HTTP 200, body ≤128 bytes). "
+            f"On the AgentProof app host this is typically "
+            f"/var/lib/agentproof/well-known/agentproof-verification served by Caddy. "
+            f"Challenge expires in {ttl_minutes} minutes and is single-use. "
+            "Do not mark the target verified manually; only a successful proof fetch works."
+        )
     await repository.audit(
         project["workspace_id"], "origin.challenged", "verification_challenge", row["id"]
     )

@@ -12,6 +12,7 @@ dev = [
   "ruff>=0.12,<1", "mypy>=1.16,<2", "pytest>=8.4,<10",
   "pytest-asyncio>=1,<2", "httpx>=0.28,<1", "PyYAML>=6,<7",
   "types-PyYAML>=6,<7", "detect-secrets==1.5.0",
+  "python-multipart>=0.0.20,<1",
 ]
 
 [tool.ruff]

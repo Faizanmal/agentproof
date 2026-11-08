@@ -73,16 +73,34 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [pathname]);
 
   async function logout() {
-    if (!identity) return;
     try {
-      const response = await createApiClient(identity.csrf_token).POST(
-        "/api/v1/auth/logout",
-      );
-      if (response.response.ok) {
+      // CSRF is bound to the refresh session id; refresh it before logout so a
+      // rotated access token cannot leave a stale token that fails sign-out.
+      const csrf = await createApiClient().GET("/api/v1/auth/csrf");
+      if (!csrf.data) {
         setIdentity(null);
         router.replace("/login?reason=signed-out");
         router.refresh();
-      } else setMessage("Sign out failed. Please try again.");
+        return;
+      }
+      const response = await createApiClient(csrf.data.csrf_token).POST(
+        "/api/v1/auth/logout",
+        { body: {} as never },
+      );
+      if (response.response.ok || response.response.status === 401) {
+        setIdentity(null);
+        router.replace("/login?reason=signed-out");
+        router.refresh();
+        return;
+      }
+      const code = typeof response.error === "object" && response.error && "code" in response.error
+        ? String((response.error as { code?: string }).code ?? "")
+        : "";
+      setMessage(
+        code === "CSRF_REJECTED"
+          ? "Sign out was rejected by session protection. Refresh the page and try again."
+          : `Sign out failed (HTTP ${response.response.status}). Please try again.`,
+      );
     } catch {
       setMessage("The API is unavailable; your session could not be ended.");
     }

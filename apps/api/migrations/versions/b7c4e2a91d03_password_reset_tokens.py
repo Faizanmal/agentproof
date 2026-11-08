@@ -3,8 +3,8 @@
 import sqlalchemy as sa
 from alembic import op
 
-revision = "b7c4e2a91d03"
-down_revision = "e542c1a708bf"
+revision = "b7c4e2a91d03"  # pragma: allowlist secret -- migration identifier
+down_revision = "e542c1a708bf"  # pragma: allowlist secret -- migration identifier
 branch_labels = None
 depends_on = None
 

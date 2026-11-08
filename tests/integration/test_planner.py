@@ -27,12 +27,15 @@ async def test_generated_plan_persistence_and_scope_invalidates_approval(
     client, pid, plid = await setup(environment)
     row = (await client.get(f"/api/v1/plans/{plid}")).json()
     assert row["status"] == "draft" and row["plan_json"]["schema_version"] == "1.0"
+    draft_run = await client.post(
+        f"/api/v1/projects/{pid}/runs",
+        json={"plan_id": plid, "idempotency_key": "awaits-approval"},
+    )
+    assert draft_run.status_code == 202, draft_run.text
+    assert draft_run.json()["status"] == "awaiting_approval"
     assert (
-        await client.post(
-            f"/api/v1/projects/{pid}/runs",
-            json={"plan_id": plid, "idempotency_key": "must-not-run"},
-        )
-    ).status_code == 409
+        await client.post(f"/api/v1/runs/{draft_run.json()['id']}/cancel", json={})
+    ).status_code == 202
     assert (await client.post(f"/api/v1/plans/{plid}/approve", json={})).status_code == 422
     assert (
         await client.post(

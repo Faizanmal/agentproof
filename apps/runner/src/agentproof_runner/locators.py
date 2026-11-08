@@ -14,31 +14,45 @@ _CSS = re.compile(
 )
 
 
-def locate(page: Page, target: Target, *, allow_multiple: bool = False) -> Locator:
+def _raw_locator(page: Page, target: Target) -> Locator:
     match target.strategy:
         case "role":
             if not target.role:
                 raise PolicyDenied("role locator missing role")
-            loc = page.get_by_role(target.role, name=target.name, exact=True)
+            return page.get_by_role(target.role, name=target.name, exact=True)
         case "label":
-            loc = page.get_by_label(target.name, exact=True)
+            return page.get_by_label(target.name, exact=True)
         case "test_id":
-            loc = page.get_by_test_id(target.name)
+            return page.get_by_test_id(target.name)
         case "placeholder":
-            loc = page.get_by_placeholder(target.name, exact=True)
+            return page.get_by_placeholder(target.name, exact=True)
         case "text":
-            loc = page.get_by_text(target.name, exact=True)
+            return page.get_by_text(target.name, exact=True)
         case "css":
             if not _CSS.fullmatch(target.name):
                 raise PolicyDenied("unsafe CSS locator")
-            loc = page.locator(target.name)
+            return page.locator(target.name)
         case _:
             raise PolicyDenied("unsupported locator")
+
+
+def resolve_locator(page: Page, target: Target) -> tuple[Locator, int]:
+    """Resolve without denying on zero matches; callers decide FAIL vs ERROR."""
+    loc = _raw_locator(page, target)
     count = loc.count()
     if target.nth is not None:
         if target.nth >= count:
+            return loc, 0
+        return loc.nth(target.nth), 1
+    return loc, count
+
+
+def locate(page: Page, target: Target, *, allow_multiple: bool = False) -> Locator:
+    loc, count = resolve_locator(page, target)
+    if target.nth is not None:
+        if count == 0:
             raise PolicyDenied("locator disambiguator outside match count")
-        return loc.nth(target.nth)
+        return loc
     if not allow_multiple and count != 1:
         raise PolicyDenied("locator must match exactly one element", details={"match_count": count})
     return loc

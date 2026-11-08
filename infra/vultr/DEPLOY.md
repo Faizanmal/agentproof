@@ -96,6 +96,42 @@ and record returned digests. Existing unrelated local changes must be reviewed
 before any release. Use a manually dispatched protected GitHub environment for
 future CI deployment; deployment automation has not been enabled.
 
+## Owner action: publish target ownership proof (no auto-verify)
+
+Project targets stay **UNVERIFIED** until a live proof fetch succeeds. Never mark
+`authorized_origins` by hand and never reuse an expired challenge token.
+
+For project origin `https://agent.faizanmalik.me` (HTTPS well-known method):
+
+1. Sign in as a verified workspace admin on the production app.
+2. Open the project → **Issue proof challenge** (method: HTTPS well-known file).
+3. Copy the single-use token from the UI (also shown once in the API response).
+4. On **app-vm**, publish exactly that token as a one-line text file:
+
+```sh
+# Replace TOKEN with the current challenge value from the UI (no quotes).
+# Path matches Caddy: WELLKNOWN_DIR → /srv/well-known/agentproof-verification
+: "${TOKEN:?paste the current challenge token}"
+sudo install -d -m 0755 /var/lib/agentproof/well-known
+printf '%s\n' "$TOKEN" | sudo tee /var/lib/agentproof/well-known/agentproof-verification >/dev/null
+sudo chmod 0644 /var/lib/agentproof/well-known/agentproof-verification
+# Confirm public fetch (expect HTTP 200 and the exact token body):
+curl -fsS "https://agent.faizanmalik.me/.well-known/agentproof-verification"
+```
+
+5. In the UI, click **Verify published proof** before the challenge TTL (default 30
+   minutes). On success the origin shows verified with an expiry.
+6. If verify returns `PROOF_NOT_FOUND`, `PROOF_HTTP_ERROR`, `PROOF_FETCH_ERROR`,
+   `CHALLENGE_EXPIRED`, or `CHALLENGE_REUSED`: fix the file or issue a **fresh**
+   challenge and republish the new token. Do not keep an old token on disk.
+
+DNS TXT alternative: create `_agentproof-verification.<host>` TXT with the exact
+token, wait for propagation, then verify.
+
+The public `/qa-fixture/` page is a separate static heading fixture (no forms).
+Form/subscription demos use the local owned fixture under `tests/fixtures/site`
+and require explicit owner approval before any public deploy of that app.
+
 ## Sandbox boundary
 
 Run broker as a dedicated host service with private TLS and HMAC, never public.

@@ -167,10 +167,32 @@ export function ProjectWorkspace() {
       if (result.data?.verified_at) {
         setChallenge(null);
         setMessage("Target origin verified.");
-      } else
+      } else {
+        const code =
+          typeof result.error === "object" && result.error && "code" in result.error
+            ? String((result.error as { code?: string }).code ?? "")
+            : "";
+        const messages: Record<string, string> = {
+          CHALLENGE_EXPIRED:
+            "This challenge expired. Issue a fresh challenge, republish the new token, then verify again.",
+          CHALLENGE_REUSED:
+            "This challenge was already used. Issue a fresh challenge and publish the new token.",
+          PROOF_NOT_FOUND:
+            "No proof file or TXT record was found. Publish the exact token, then retry.",
+          PROOF_HTTP_ERROR:
+            "The proof URL did not return HTTP 200. Confirm the well-known path is reachable over HTTPS.",
+          PROOF_EMPTY_OR_INVALID:
+            "The proof body was empty or longer than 128 bytes. Publish only the exact challenge token.",
+          PROOF_FETCH_ERROR:
+            "AgentProof could not fetch the proof. Fix TLS/DNS/network and retry; do not mark verified manually.",
+          VERIFICATION_FAILED:
+            "A proof was fetched but did not match this challenge. Republish the exact current token.",
+        };
         setMessage(
-          "Target verification failed (HTTP " + result.response.status + ").",
+          messages[code] ??
+            "Target verification failed (HTTP " + result.response.status + ").",
         );
+      }
     } catch {
       setMessage("The API is unavailable.");
     } finally {

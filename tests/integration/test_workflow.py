@@ -114,3 +114,26 @@ async def test_report_does_not_invent_execution_evidence(environment: dict[str, 
         readme = archive.read("README.md").decode()
     assert "TODO_MANUAL s1" in spec and "expect(" not in spec
     assert "AGENTPROOF_BASE_URL" in readme
+
+
+async def test_report_attributes_model_usage_from_plan_id(
+    environment: dict[str, Any],
+) -> None:
+    client = environment["client"]
+    _, _, plan_id, run_id = await fixture_run(environment, "report-model-usage@example.com")
+    report = await client.get(f"/api/v1/runs/{run_id}/report?format=json")
+    assert report.status_code == 200
+    body = report.json()
+    assert body["run"]["model"] == "fixture-model"
+    async with environment["factory"]() as session:
+        usage = (
+            (
+                await session.execute(
+                    select(db.model_usage).where(db.model_usage.c.plan_id == UUID(plan_id))
+                )
+            )
+            .mappings()
+            .one()
+        )
+        assert usage["run_id"] is None
+        assert usage["model_actual"] == body["run"]["model"]

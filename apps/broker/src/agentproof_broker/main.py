@@ -505,7 +505,9 @@ class Broker:
             [self.config["docker"], *args], proc.returncode or 0, output, error
         )
 
-    async def create(self, envelope: JobEnvelope, *, raw_job: dict[str, Any] | None = None) -> SandboxAccepted:
+    async def create(
+        self, envelope: JobEnvelope, *, raw_job: dict[str, Any] | None = None
+    ) -> SandboxAccepted:
         job = envelope.job
         # Verify over the wire JSON (raw_job) when provided. Signing after
         # model_dump(mode="json") rewrites datetimes and breaks worker HMACs.

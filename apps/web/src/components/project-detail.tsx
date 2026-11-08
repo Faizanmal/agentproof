@@ -87,7 +87,25 @@ export function ProjectDetail({ settings = false }: { settings?: boolean }) {
       const result = await createApiClient(csrf).POST("/api/v1/projects/{project_id}/verify-target", {
         params: { path: { project_id: id } }, body: { origin_id: challenge.id, attestation: challenge.method === "demo" && attested },
       });
-      if (!result.data) throw new Error(result.response.status === 409 ? "The proof was not found, expired, or already used. Issue a fresh challenge and recheck DNS/TLS." : `Target verification failed (HTTP ${result.response.status}).`);
+      if (!result.data) {
+        const code = typeof result.error === "object" && result.error && "code" in result.error
+          ? String((result.error as { code?: string }).code ?? "")
+          : "";
+        const messages: Record<string, string> = {
+          CHALLENGE_EXPIRED: "This challenge expired. Issue a fresh challenge, republish the new token, then verify again.",
+          CHALLENGE_REUSED: "This challenge was already used. Issue a fresh challenge and publish the new token.",
+          PROOF_NOT_FOUND: "No proof file or TXT record was found at the expected location. Publish the exact token, then retry.",
+          PROOF_HTTP_ERROR: "The proof URL did not return HTTP 200. Confirm the well-known path is publicly reachable over HTTPS.",
+          PROOF_EMPTY_OR_INVALID: "The proof body was empty or longer than 128 bytes. Publish only the exact challenge token.",
+          PROOF_FETCH_ERROR: "AgentProof could not fetch the proof (TLS, DNS, or network). Fix connectivity and retry; do not mark the target verified manually.",
+          VERIFICATION_FAILED: "A proof was fetched but did not match this challenge. Republish the exact current token and retry, or issue a fresh challenge.",
+          OWNER_ATTESTATION_REQUIRED: "Demo attestation requires workspace owner confirmation on an allowlisted origin.",
+          DEMO_SCOPE_DENIED: "Demo verification is not available for this origin or role.",
+        };
+        throw new Error(messages[code] ?? (result.response.status === 409
+          ? "Verification failed. Issue a fresh challenge if the previous one expired or was already used."
+          : `Target verification failed (HTTP ${result.response.status}).`));
+      }
       setChallenge(null); return `Origin verified until ${new Date(result.data.expires_at).toLocaleString()}.`;
     });
   }
@@ -159,9 +177,9 @@ export function ProjectDetail({ settings = false }: { settings?: boolean }) {
         {!hasValidOrigin && <form className="app-form inline-form" onSubmit={issueChallenge}><label htmlFor="proof-origin">Origin to verify</label><input id="proof-origin" name="origin" type="url" defaultValue={project.base_url} required /><label htmlFor="proof-method">Proof method</label><select id="proof-method" value={proofMethod} onChange={(event) => setProofMethod(event.target.value as typeof proofMethod)}><option value="https-file">HTTPS well-known file</option><option value="dns-txt">DNS TXT record</option><option value="demo">Administrative demo allowlist</option></select><p className="field-note">Local/demo attestation is restricted to the configured administrative allowlist and is not available for arbitrary websites.</p><button className="button secondary" disabled={busy}>Issue proof challenge</button></form>}
       </Panel>
       <Panel>
-        <div className="panel-heading"><div><h2>TEST credentials</h2><p>Encrypted test accounts only. Values are write-only and are never shown again.</p></div><KeyRound size={18} aria-hidden="true" /></div>
-        <div className="credential-warning">Never use a real customer or production account. Credentials are scoped to approved login steps.</div>
-        {secrets.length > 0 && <div className="credential-list">{secrets.map((secret) => <div className="credential-row" key={secret.id}><span><strong>{secret.label}</strong><small>Added {new Date(secret.created_at).toLocaleDateString()} · values hidden</small></span><button className="icon-button danger-icon" aria-label={`Delete ${secret.label}`} onClick={() => deleteCredential(secret)}><Trash2 size={16} /></button></div>)}</div>}
+        <div className="panel-heading"><div><h2>TEST credentials</h2><p>Encrypted test-account storage only. Browser login execution is not available in this release.</p></div><KeyRound size={18} aria-hidden="true" /></div>
+        <div className="credential-warning">Authenticated workflows that fill credential: references are rejected at plan time. Never store a real customer or production account. Stored values are write-only and never appear in plans, screenshots, traces, or logs.</div>
+        {secrets.length > 0 && <div className="credential-list">{secrets.map((secret) => <div className="credential-row" key={secret.id}><span><strong>{secret.label}</strong><small>Added {new Date(secret.created_at).toLocaleDateString()} · values hidden · login execution unsupported</small></span><button className="icon-button danger-icon" aria-label={`Delete ${secret.label}`} onClick={() => deleteCredential(secret)}><Trash2 size={16} /></button></div>)}</div>}
         <form className="app-form credential-form" onSubmit={addCredential}><label htmlFor="secret-label">Credential label</label><input id="secret-label" name="label" required pattern="[a-z][a-z0-9-]{0,78}" placeholder="e2e-staging-user" /><label htmlFor="secret-user">Test username</label><input id="secret-user" name="username" type="text" autoComplete="off" required maxLength={256} /><label htmlFor="secret-password">Test password</label><input id="secret-password" name="password" type="password" autoComplete="new-password" required maxLength={256} /><label className="checkbox-line"><input name="test-account" type="checkbox" value="yes" required />I confirm these credentials belong to a TEST account.</label><button className="button secondary" disabled={busy}>Store test credentials</button></form>
       </Panel>
       <Panel><div className="panel-heading"><div><h2>Plans and runs</h2><p>Generated plans require human review and approval before a browser run is queued.</p></div><Link className="subtle-link" href={`/app/projects/${id}/plans/new`}>New plan <ArrowRight size={15} /></Link></div>

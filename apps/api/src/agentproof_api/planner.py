@@ -39,8 +39,12 @@ async def generate(
         "Every locator must be unique, or provide explicit nth disambiguation. "
         "Start with scoped navigation and include an observed assertion. No side effects "
         "outside explicitly approved fixture forms. Never payment, messaging, deletion, "
-        "account changes, password reset or data export. Never default human approvals."
-        " For the owned subscription fixture, use synthetic:yearly for the yearly interval; "
+        "account changes, password reset or data export. Never default human approvals. "
+        "If the goal requires forms, validation errors, or login and the scoped page has no "
+        "such controls (for example a static heading-only fixture), do not invent form steps "
+        "or silently substitute an easier goal—return only navigations and assertions that "
+        "match the real page, or a plan the policy engine can reject as unsupported. "
+        "For the owned subscription fixture, use synthetic:yearly for the yearly interval; "
         "synthetic:name and synthetic:text resolve to a run-scoped AgentProof-E2E label."
     )
     quoted = {

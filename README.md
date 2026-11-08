@@ -11,7 +11,7 @@ implemented. The live Challenge 1 demo runs on Vultr at
 
 Run all commands from the directory containing this README (`agentproof/`).
 Install the pinned Node and Python versions from `.node-version` and
-`.python-version`, pnpm 11.18.0, uv 0.8.3, and Docker with Linux-container Compose.
+`.python-version`, pnpm 11.28.9, uv 0.8.3, and Docker with Linux-container Compose.
 Make is optional. `corepack --version` should be checked before relying on it;
 Corepack is absent on the implementation host. Existing pnpm works without it.
 Installing missing global tools is an explicit machine setup step, not something
@@ -258,7 +258,7 @@ for the redaction boundary and storage limitations.
 
 See [ADR 0003](docs/adr/0003-origin-proof.md) for the precise authorization model and limits. A verified workspace owner/admin issues a single-use verification-challenges request, publishes the returned token by DNS TXT or HTTPS file, then confirms with verify-target. The authorized-origins API lists expiring grants; target-policy accepts only verified origins and same-project secret IDs. The projects screen provides proof and TEST-login forms. Public targets require HTTPS; demo attestation requires the administrative exact allowlist and defaults off.
 
-Credentials require TEST-account confirmation. Responses expose only ID, label and creation time. No public decrypt endpoint exists. Runs capture signed immutable policy snapshots. Browser dispatch uses the private broker under the network policy in [ADR 0005](docs/adr/0005-isolated-sandbox-execution.md). See [ADR 0003](docs/adr/0003-origin-proof.md) for key rotation and one-use credential delivery boundaries.
+Credentials require TEST-account confirmation. Responses expose only ID, label and creation time. No public decrypt endpoint exists. **Authenticated browser login execution is not available in this release:** plans that use `credential:` value refs are rejected with `AUTHENTICATED_TESTING_UNSUPPORTED`, and the runner fail-closes on credential references. Vault storage remains for future work; credentials never enter plans, screenshots, traces, or logs. Runs capture signed immutable policy snapshots. Browser dispatch uses the private broker under the network policy in [ADR 0005](docs/adr/0005-isolated-sandbox-execution.md). Owner proof-publishing steps for production well-known files are in [infra/vultr/DEPLOY.md](infra/vultr/DEPLOY.md) and [internal-docs/OWNER_ACTIONS.md](internal-docs/OWNER_ACTIONS.md).
 
 For a reproducible real HTTP demo check, run the command below with local dependencies available. It uses an operator-owned fixture on 19090 and a temporary API on 18003, enables demo configuration only in that child process, removes its project and stops both servers. It retains a local smoke account/workspace and writes only redacted API logs under ignored .cache.
 

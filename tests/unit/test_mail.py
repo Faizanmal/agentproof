@@ -1,11 +1,11 @@
 from typing import Any
+from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
 from agentproof_api.mail import send_mail, try_send_outbox_now
 from agentproof_api.settings import Settings
 from pydantic import SecretStr
-from unittest.mock import AsyncMock, MagicMock
 
 
 def test_smtp_requires_starttls_and_never_enables_debug(monkeypatch: pytest.MonkeyPatch) -> None:

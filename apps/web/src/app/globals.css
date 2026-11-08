@@ -165,8 +165,13 @@ nav a:hover,
   text-underline-offset: 5px;
 }
 .theme-toggle {
-  padding: 10px;
-  display: flex;
+  box-sizing: border-box;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: transparent;
   border: 1px solid var(--line);
   border-radius: 50%;

@@ -94,7 +94,16 @@ export default function SettingsPage() {
         "/api/v1/auth/resend-verification",
       );
       if (!result.data) {
-        throw new Error(`Verification email could not be sent (HTTP ${result.response.status}).`);
+        const code = typeof result.error === "object" && result.error && "code" in result.error
+          ? String((result.error as { code?: string }).code ?? "")
+          : "";
+        throw new Error(
+          code === "MAIL_NOT_CONFIGURED"
+            ? "Email delivery is not configured. Contact the operator; no verification token was exposed."
+            : result.response.status === 429
+              ? "Too many resend attempts. Wait before requesting another verification email."
+              : `Verification email could not be sent (HTTP ${result.response.status}).`,
+        );
       }
       setMessage(result.data.message);
       if (result.data.development_verification_url) {

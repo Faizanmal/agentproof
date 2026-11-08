@@ -11,7 +11,7 @@ from uuid import UUID, uuid4
 from fastapi import APIRouter, HTTPException, Query, Request, Response
 from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
 from pydantic import BaseModel
-from sqlalchemy import delete, func, insert, select, text, update
+from sqlalchemy import delete, func, insert, or_, select, text, update
 from sqlalchemy.exc import IntegrityError
 from starlette.background import BackgroundTask
 
@@ -731,11 +731,17 @@ async def _run_report(repository: Repository, run_id: UUID) -> dict[str, Any]:
                 }
         except (OSError, ValueError, HTTPException):
             continue
+    # UI plans record usage against plan_id; deferred worker generation may use run_id.
     usage = (
         (
             await repository.session.execute(
                 select(db.model_usage)
-                .where(db.model_usage.c.run_id == run_id)
+                .where(
+                    or_(
+                        db.model_usage.c.run_id == run_id,
+                        db.model_usage.c.plan_id == run["plan_id"],
+                    )
+                )
                 .order_by(db.model_usage.c.created_at)
             )
         )

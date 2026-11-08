@@ -58,16 +58,16 @@ async def test_ownership_proof_single_use_expiry_and_scope(
         assert row["token_hash"] == digest(raw) and raw not in str(dict(row))
     proof = AsyncMock(return_value=["wrong"] if method == "dns-txt" else "wrong")
     monkeypatch.setattr(target_routes, "fetch_txt" if method == "dns-txt" else "fetch_proof", proof)
-    assert (
-        await client.post(endpoint + "/verify-target", json={"origin_id": cid})
-    ).status_code == 409
+    mismatch = await client.post(endpoint + "/verify-target", json={"origin_id": cid})
+    assert mismatch.status_code == 409
+    assert mismatch.json()["code"] == "VERIFICATION_FAILED"
     proof.return_value = [raw] if method == "dns-txt" else raw
     result = await client.post(endpoint + "/verify-target", json={"origin_id": cid})
     assert result.status_code == 200, result.text
     assert result.json()["normalized_origin"] == "https://owned.example"
-    assert (
-        await client.post(endpoint + "/verify-target", json={"origin_id": cid})
-    ).status_code == 409
+    reused = await client.post(endpoint + "/verify-target", json={"origin_id": cid})
+    assert reused.status_code == 409
+    assert reused.json()["code"] == "CHALLENGE_REUSED"
     assert (
         await client.post(endpoint + "/verify-target", json={"origin_id": "malformed"})
     ).status_code == 422
@@ -75,6 +75,7 @@ async def test_ownership_proof_single_use_expiry_and_scope(
         endpoint + "/verification-challenges",
         json={"origin": "https://owned.example", "method": method},
     )
+    assert "expires" in expired.json()["instructions"].lower()
     eid = expired.json()["id"]
     async with environment["factory"]() as session:
         await session.execute(
@@ -83,9 +84,9 @@ async def test_ownership_proof_single_use_expiry_and_scope(
             .values(expires_at=now() - timedelta(seconds=1))
         )
         await session.commit()
-    assert (
-        await client.post(endpoint + "/verify-target", json={"origin_id": eid})
-    ).status_code == 409
+    expired_verify = await client.post(endpoint + "/verify-target", json={"origin_id": eid})
+    assert expired_verify.status_code == 409
+    assert expired_verify.json()["code"] == "CHALLENGE_EXPIRED"
     client.cookies.clear()
     await register(client, "other@example.com")
     assert (
@@ -149,6 +150,7 @@ async def test_snapshot_immutable_and_unverified_scope_denied(environment: dict[
 async def test_scoped_one_use_broker_delivery(environment: dict[str, Any]) -> None:
     client = environment["client"]
     _, pid, plid, initial = await fixture_run(environment)
+    assert (await client.post(f"/api/v1/runs/{initial}/cancel", json={})).status_code == 202
     result = await client.post(
         f"/api/v1/projects/{pid}/secrets",
         json={

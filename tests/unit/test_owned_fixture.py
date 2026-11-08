@@ -30,7 +30,7 @@ def owned_fixture(
     fixture_server = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = fixture_server
     spec.loader.exec_module(fixture_server)
-    with TestClient(fixture_server.app) as client:
+    with TestClient(fixture_server.app, follow_redirects=False) as client:
         credentials = json.loads((state / "credentials.json").read_text(encoding="utf-8"))
         yield fixture_server, client, credentials
 

@@ -6,7 +6,8 @@ from datetime import UTC, datetime
 from typing import Any
 
 from .contracts import Step
-from .locators import locate
+from .locators import locate, resolve_locator
+from .policy import PolicyDenied
 from .redaction import redact_text
 
 
@@ -14,6 +15,7 @@ def observe_assertion(page: Any, step: Step) -> dict[str, Any]:
     assert step.assertion is not None
     expected = step.assertion.expected
     observed: Any
+    capture_note: str | None = None
     if step.action == "assert_url":
         observed = (
             page.url.split("?", 1)[0]
@@ -26,23 +28,38 @@ def observe_assertion(page: Any, step: Step) -> dict[str, Any]:
     else:
         if step.target is None:
             raise ValueError("assertion locator required")
-        loc = locate(page, step.target, allow_multiple=step.action == "assert_count")
-        if step.assertion.kind == "visible":
-            observed = loc.is_visible() if loc.count() else False
-        elif step.assertion.kind == "text":
-            observed = redact_text(loc.inner_text(timeout=step.timeout_ms))
-        elif step.assertion.kind == "count":
+        if step.assertion.kind == "count":
+            loc = locate(page, step.target, allow_multiple=True)
             observed = loc.count()
         else:
-            observed = None
-    matched = observed == expected
-    return {
+            # Zero matches are assertion FAILs. Ambiguous matches stay infrastructure ERROR.
+            loc, match_count = resolve_locator(page, step.target)
+            if match_count == 0:
+                observed = False if step.assertion.kind == "visible" else None
+                capture_note = "element_not_found"
+            elif match_count != 1:
+                raise PolicyDenied(
+                    "locator must match exactly one element", details={"match_count": match_count}
+                )
+            elif step.assertion.kind == "visible":
+                observed = loc.is_visible()
+            elif step.assertion.kind == "text":
+                observed = redact_text(loc.inner_text(timeout=step.timeout_ms))
+            else:
+                observed = None
+                capture_note = "unsupported_assertion_kind"
+    # Missing elements keep observed as None/False — never invent captured text.
+    matched = observed == expected and capture_note != "unsupported_assertion_kind"
+    result: dict[str, Any] = {
         "status": "PASS" if matched else "FAIL",
         "kind": step.assertion.kind,
         "expected": redact_text(expected) if isinstance(expected, str) else expected,
         "observed": observed,
         "timestamp": datetime.now(UTC).isoformat(),
     }
+    if capture_note:
+        result["capture"] = capture_note
+    return result
 
 
 def verdict(records: list[dict[str, Any]]) -> str:
