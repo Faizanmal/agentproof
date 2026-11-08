@@ -1,7 +1,7 @@
 from typing import Any
 
 import pytest
-from agentproof_api.mail import send_verification
+from agentproof_api.mail import send_mail
 from agentproof_api.settings import Settings
 from pydantic import SecretStr
 
@@ -44,7 +44,49 @@ def test_smtp_requires_starttls_and_never_enables_debug(monkeypatch: pytest.Monk
         smtp_password=SecretStr("test-only-placeholder"),
         mail_from="sender@example.com",
     )
-    send_verification(
-        config, "recipient@example.com", "https://owned.example/auth/verify#token=fixture"
+    send_mail(
+        config,
+        "recipient@example.com",
+        "verification",
+        "https://owned.example/auth/verify#token=fixture",
     )
     assert calls == ["ehlo", "tls", "ehlo", "login", "send"]
+
+
+def test_smtp_password_reset_subject(monkeypatch: pytest.MonkeyPatch) -> None:
+    subjects: list[str] = []
+
+    class SMTP:
+        def __init__(self, host: str, port: int, timeout: int) -> None:
+            pass
+
+        def __enter__(self) -> "SMTP":
+            return self
+
+        def __exit__(self, *args: Any) -> None:
+            pass
+
+        def ehlo(self) -> None:
+            pass
+
+        def starttls(self, *, context: Any) -> None:
+            pass
+
+        def send_message(self, message: Any) -> None:
+            subjects.append(message["Subject"])
+            assert "auth/reset#token=fixture" in message.get_content()
+
+    monkeypatch.setattr("agentproof_api.mail.smtplib.SMTP", SMTP)
+    config = Settings(
+        _env_file=None,
+        mail_backend="smtp",
+        smtp_host="smtp.invalid",
+        mail_from="sender@example.com",
+    )
+    send_mail(
+        config,
+        "recipient@example.com",
+        "password_reset",
+        "https://owned.example/auth/reset#token=fixture",
+    )
+    assert subjects == ["Reset your AgentProof password"]

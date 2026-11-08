@@ -17,9 +17,12 @@ from agentproof_api.api_models import (
     Credentials,
     CsrfView,
     DevelopmentMail,
+    EmailInput,
     Identity,
     LoginInput,
     Message,
+    PasswordResetInput,
+    PasswordResetRequested,
     TokenInput,
     UserView,
 )
@@ -238,10 +241,7 @@ async def register(
     if not config.registration_enabled:
         raise HTTPException(403, "REGISTRATION_DISABLED")
     signing_key(config)
-    if config.mail_backend == "disabled" or (
-        config.app_env == "production"
-        and (config.mail_backend != "smtp" or not config.smtp_host or not config.mail_from)
-    ):
+    if not mail_ready(config):
         raise HTTPException(503, "MAIL_NOT_CONFIGURED")
     await rate_limit(request, "register", body.email, 5, 3600)
     # Preflight encryption before writing anything. Verification links stay encrypted at rest.
@@ -272,12 +272,129 @@ async def register(
     await session.execute(
         insert(db.mail_outbox).values(
             user_id=user_id,
+            purpose="verification",
             ciphertext=ciphertext,
             key_version=config.encryption_key_version,
             expires_at=expires,
         )
     )
     return await create_session(session, request, response, dict(user))
+
+
+def mail_ready(config: Settings) -> bool:
+    if config.mail_backend == "disabled":
+        return False
+    if config.app_env == "production" and (
+        config.mail_backend != "smtp" or not config.smtp_host or not config.mail_from
+    ):
+        return False
+    return True
+
+
+@router.post("/auth/forgot-password", response_model=PasswordResetRequested)
+async def forgot_password(
+    body: EmailInput, request: Request, session: DB
+) -> PasswordResetRequested:
+    config = settings(request)
+    if not mail_ready(config):
+        raise HTTPException(503, "MAIL_NOT_CONFIGURED")
+    signing_key(config)
+    await rate_limit(request, "forgot-password", body.email, 5, 3600)
+    notice = "If an account exists for that email, reset instructions were sent."
+    row = (
+        (
+            await session.execute(
+                select(db.users).where(
+                    db.users.c.email == body.email, db.users.c.disabled_at.is_(None)
+                )
+            )
+        )
+        .mappings()
+        .first()
+    )
+    if row is None:
+        return PasswordResetRequested(message=notice)
+    reset_token, reset_id = token(), uuid4()
+    link = config.public_app_url.rstrip("/") + "/auth/reset#token=" + reset_token
+    ciphertext = encrypt(config, link, f"password_reset:{row['id']}")
+    expires = now() + timedelta(hours=1)
+    await session.execute(
+        update(db.password_resets)
+        .where(
+            db.password_resets.c.user_id == row["id"],
+            db.password_resets.c.used_at.is_(None),
+        )
+        .values(used_at=now())
+    )
+    await session.execute(
+        insert(db.password_resets).values(
+            id=reset_id,
+            user_id=row["id"],
+            token_hash=digest(reset_token),
+            expires_at=expires,
+        )
+    )
+    await session.execute(
+        insert(db.mail_outbox).values(
+            user_id=row["id"],
+            purpose="password_reset",
+            ciphertext=ciphertext,
+            key_version=config.encryption_key_version,
+            expires_at=expires,
+        )
+    )
+    return PasswordResetRequested(
+        message=notice,
+        development_reset_url=link if config.mail_backend == "development" else None,
+    )
+
+
+@router.post("/auth/reset-password", response_model=Message)
+async def reset_password(body: PasswordResetInput, request: Request, session: DB) -> Message:
+    await rate_limit(
+        request, "reset-password", digest(body.token.get_secret_value()), 10, 3600
+    )
+    row = (
+        (
+            await session.execute(
+                select(db.password_resets)
+                .where(db.password_resets.c.token_hash == digest(body.token.get_secret_value()))
+                .with_for_update()
+            )
+        )
+        .mappings()
+        .first()
+    )
+    if row is None or row["used_at"] is not None or row["expires_at"] <= now():
+        raise HTTPException(400, "INVALID_RESET")
+    user = (
+        (
+            await session.execute(
+                select(db.users)
+                .where(db.users.c.id == row["user_id"], db.users.c.disabled_at.is_(None))
+                .with_for_update()
+            )
+        )
+        .mappings()
+        .first()
+    )
+    if user is None:
+        raise HTTPException(400, "INVALID_RESET")
+    hashed = await run_in_threadpool(passwords.hash, body.password.get_secret_value())
+    await session.execute(
+        update(db.password_resets)
+        .where(db.password_resets.c.id == row["id"])
+        .values(used_at=now())
+    )
+    await session.execute(
+        update(db.users).where(db.users.c.id == user["id"]).values(password_hash=hashed)
+    )
+    await session.execute(
+        update(db.sessions)
+        .where(db.sessions.c.user_id == user["id"], db.sessions.c.revoked_at.is_(None))
+        .values(revoked_at=now())
+    )
+    return Message(message="Password updated")
 
 
 @router.post("/auth/login", response_model=Identity)
@@ -386,10 +503,15 @@ def development_mail_router(config: Settings) -> APIRouter:
         )
         if row is None:
             raise HTTPException(404, "NOT_FOUND")
+        purpose = row["purpose"]
+        context = (
+            f"password_reset:{user.id}"
+            if purpose == "password_reset"
+            else f"verification:{user.id}"
+        )
         return DevelopmentMail(
-            verification_url=decrypt(
-                settings(request), row["ciphertext"], f"verification:{user.id}", row["key_version"]
-            ),
+            purpose=purpose,
+            url=decrypt(settings(request), row["ciphertext"], context, row["key_version"]),
             expires_at=row["expires_at"],
         )
 

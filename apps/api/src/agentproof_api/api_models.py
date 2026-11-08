@@ -3,13 +3,32 @@ from typing import Annotated, Any, Literal, Self, TypeVar
 from urllib.parse import urlsplit
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    SecretStr,
+    computed_field,
+    field_validator,
+    model_validator,
+)
 
 from agentproof_api.plan_schema import QAPlanV1, TestScope
 
 
 class Model(BaseModel):
     model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
+
+
+def normalize_email(value: str) -> str:
+    from email_validator import EmailNotValidError, validate_email
+
+    try:
+        return str(
+            validate_email(value.strip(), check_deliverability=False).normalized
+        ).casefold()
+    except EmailNotValidError:
+        raise ValueError("Invalid email") from None
 
 
 class Credentials(Model):
@@ -19,22 +38,29 @@ class Credentials(Model):
     @field_validator("email")
     @classmethod
     def email_normalized(cls, value: str) -> str:
-        from email_validator import EmailNotValidError, validate_email
-
-        try:
-            return str(
-                validate_email(value.strip(), check_deliverability=False).normalized
-            ).casefold()
-        except EmailNotValidError:
-            raise ValueError("Invalid email") from None
+        return normalize_email(value)
 
 
 class LoginInput(Credentials):
     password: SecretStr = Field(min_length=1, max_length=256)
 
 
+class EmailInput(Model):
+    email: str = Field(min_length=3, max_length=254)
+
+    @field_validator("email")
+    @classmethod
+    def email_normalized(cls, value: str) -> str:
+        return normalize_email(value)
+
+
 class TokenInput(Model):
     token: SecretStr = Field(min_length=32, max_length=256)
+
+
+class PasswordResetInput(Model):
+    token: SecretStr = Field(min_length=32, max_length=256)
+    password: SecretStr = Field(min_length=12, max_length=256)
 
 
 class UserView(Model):
@@ -362,9 +388,25 @@ class Message(Model):
     message: str
 
 
+class PasswordResetRequested(Model):
+    message: str
+    development_reset_url: str | None = None
+
+
 class DevelopmentMail(Model):
-    verification_url: str
+    purpose: Literal["verification", "password_reset"]
+    url: str
     expires_at: datetime
+
+    @computed_field
+    @property
+    def verification_url(self) -> str | None:
+        return self.url if self.purpose == "verification" else None
+
+    @computed_field
+    @property
+    def password_reset_url(self) -> str | None:
+        return self.url if self.purpose == "password_reset" else None
 
 
 class CsrfView(Model):

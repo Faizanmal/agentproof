@@ -104,15 +104,26 @@ email_verifications = Table(
     Column("expires_at", DateTime(timezone=True), nullable=False, index=True),
     Column("used_at", DateTime(timezone=True)),
 )
+password_resets = Table(
+    "password_resets",
+    metadata,
+    *common(),
+    ref("user_id", "users.id", ondelete="CASCADE"),
+    Column("token_hash", String(64), nullable=False, unique=True),
+    Column("expires_at", DateTime(timezone=True), nullable=False, index=True),
+    Column("used_at", DateTime(timezone=True)),
+)
 mail_outbox = Table(
     "mail_outbox",
     metadata,
     *common(),
     ref("user_id", "users.id", ondelete="CASCADE"),
+    Column("purpose", String(32), nullable=False, server_default="verification"),
     Column("ciphertext", LargeBinary, nullable=False),
     Column("key_version", Integer, nullable=False),
     Column("delivered_at", DateTime(timezone=True)),
     Column("expires_at", DateTime(timezone=True), nullable=False, index=True),
+    choices("purpose", "verification password_reset"),
 )
 workspaces = Table(
     "workspaces",

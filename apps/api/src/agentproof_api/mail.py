@@ -1,4 +1,4 @@
-"""Explicit operator delivery of the durable, encrypted verification outbox."""
+"""Explicit operator delivery of the durable, encrypted mail outbox."""
 
 import asyncio
 import smtplib
@@ -13,16 +13,22 @@ from agentproof_api.security import decrypt, now
 from agentproof_api.settings import Settings
 
 
-def send_verification(config: Settings, recipient: str, link: str) -> None:
+def send_mail(config: Settings, recipient: str, purpose: str, link: str) -> None:
     if config.mail_backend != "smtp" or not config.smtp_host or not config.mail_from:
         raise RuntimeError("SMTP is not configured")
+    if purpose == "password_reset":
+        subject = "Reset your AgentProof password"
+        body = "Reset your password within one hour:\n" + link
+    else:
+        subject = "Verify your AgentProof email"
+        body = "Verify your email within one hour:\n" + link
     message = EmailMessage()
     message["From"], message["To"], message["Subject"] = (
         config.mail_from,
         recipient,
-        "Verify your AgentProof email",
+        subject,
     )
-    message.set_content("Verify your email within one hour:\n" + link)
+    message.set_content(body)
     with smtplib.SMTP(config.smtp_host, config.smtp_port, timeout=10) as client:
         client.ehlo()
         client.starttls(context=ssl.create_default_context())
@@ -58,10 +64,14 @@ async def deliver_outbox(config: Settings) -> int:
                 .all()
             )
             for row in rows:
-                link = decrypt(
-                    config, row["ciphertext"], f"verification:{row['user_id']}", row["key_version"]
+                purpose = row["purpose"]
+                context = (
+                    f"password_reset:{row['user_id']}"
+                    if purpose == "password_reset"
+                    else f"verification:{row['user_id']}"
                 )
-                await asyncio.to_thread(send_verification, config, row["email"], link)
+                link = decrypt(config, row["ciphertext"], context, row["key_version"])
+                await asyncio.to_thread(send_mail, config, row["email"], purpose, link)
                 await session.execute(
                     update(db.mail_outbox)
                     .where(db.mail_outbox.c.id == row["id"])

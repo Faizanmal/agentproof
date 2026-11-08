@@ -62,7 +62,8 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
 
   async function openVerification() {
     const result = await createApiClient().GET("/api/v1/dev/mail").catch(() => undefined);
-    if (result?.data) setVerificationUrl(result.data.verification_url);
+    const url = result?.data?.verification_url ?? result?.data?.url ?? null;
+    if (url) setVerificationUrl(url);
     else setMessage("The development mailbox is unavailable. Check the configured email delivery service.");
   }
 
@@ -85,6 +86,11 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
       </form>
       {verificationUrl === "pending" && <button className="button secondary" onClick={openVerification}>Open development verification email</button>}
       {verificationUrl && verificationUrl !== "pending" && <a className="button secondary" href={verificationUrl}>Verify email</a>}
+      {!register && (
+        <p className="auth-switch">
+          <Link href="/auth/forgot">Forgot password?</Link>
+        </p>
+      )}
       <p className="auth-switch">{register ? <>Already registered? <Link href="/login">Sign in</Link></> : <>New to AgentProof? <Link href="/register">Create an account</Link></>}</p>
       <p className="auth-privacy">Secure, HTTP-only cookies. Session tokens are never stored in browser storage.</p>
     </div>

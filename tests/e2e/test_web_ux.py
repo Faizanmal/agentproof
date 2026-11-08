@@ -57,6 +57,7 @@ def assert_axe(page: Page) -> None:
         ("/", "Make every test"),
         ("/login", "Sign in to AgentProof"),
         ("/register", "Start with a verified target"),
+        ("/auth/forgot", "Reset your password"),
     ],
 )
 def test_public_routes_are_accessible_and_capture_real_screenshots(

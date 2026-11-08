@@ -101,6 +101,51 @@ async def fixture_run(
     return wid, pid, plid, str(response.json()["id"])
 
 
+async def test_forgot_and_reset_password_revokes_sessions(
+    environment: dict[str, Any],
+) -> None:
+    client = environment["client"]
+    await register(client, "resetter@example.com")
+    missing = await client.post(
+        "/api/v1/auth/forgot-password", json={"email": "nobody@example.com"}
+    )
+    assert missing.status_code == 200, missing.text
+    assert missing.json()["development_reset_url"] is None
+    assert "If an account exists" in missing.json()["message"]
+    requested = await client.post(
+        "/api/v1/auth/forgot-password", json={"email": "resetter@example.com"}
+    )
+    assert requested.status_code == 200, requested.text
+    reset_url = requested.json()["development_reset_url"]
+    assert reset_url and "/auth/reset#token=" in reset_url
+    token = urlsplit(reset_url).fragment.removeprefix("token=")
+    new_password = "Replacement-password-8841"  # pragma: allowlist secret
+    assert (
+        await client.post(
+            "/api/v1/auth/reset-password",
+            json={"token": token, "password": new_password},
+        )
+    ).status_code == 200
+    assert (await client.get("/api/v1/auth/me")).status_code == 401
+    assert (
+        await client.post(
+            "/api/v1/auth/reset-password",
+            json={"token": token, "password": new_password},
+        )
+    ).status_code == 400
+    client.cookies.clear()
+    denied = await client.post(
+        "/api/v1/auth/login",
+        json={"email": "resetter@example.com", "password": PASSWORD},
+    )
+    assert denied.status_code == 401
+    accepted = await client.post(
+        "/api/v1/auth/login",
+        json={"email": "resetter@example.com", "password": new_password},
+    )
+    assert accepted.status_code == 200, accepted.text
+
+
 async def test_register_login_refresh_replay_logout(environment: dict[str, Any]) -> None:
     client = environment["client"]
     identity = await register(client)
