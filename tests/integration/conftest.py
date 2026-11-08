@@ -51,9 +51,7 @@ async def environment(tmp_path: Path) -> AsyncIterator[dict[str, Any]]:
         async with app.router.lifespan_context(app):
             app.state.session_factory = factory
             plain_redis = app.state.redis
-            redis = await create_pool(
-                RedisSettings.from_dsn(config.redis_url.get_secret_value())
-            )
+            redis = await create_pool(RedisSettings.from_dsn(config.redis_url.get_secret_value()))
             app.state.redis = redis
             # Isolated Redis DB 15, namespaced keys cleared only for this dedicated test DB.
             await redis.flushdb()

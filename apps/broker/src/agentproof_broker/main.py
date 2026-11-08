@@ -513,9 +513,7 @@ class Broker:
         # model_dump(mode="json") rewrites datetimes and breaks worker HMACs.
         signed_payload = raw_job if raw_job is not None else job.model_dump(mode="json")
         canonical = _canonical(signed_payload)
-        expected = hmac.new(
-            self.config["key"].encode(), canonical, hashlib.sha256
-        ).hexdigest()
+        expected = hmac.new(self.config["key"].encode(), canonical, hashlib.sha256).hexdigest()
         if not hmac.compare_digest(expected, envelope.signature):
             raise HTTPException(403, "BROKER_AUTHENTICATION_FAILED")
         now = datetime.now(UTC)
@@ -649,14 +647,14 @@ class Broker:
             "10001:10001",
             "--cap-drop=ALL",
             "--security-opt=no-new-privileges:true",
-                "--log-driver",
-                "local",
-                "--log-opt",
-                "max-size=1m",
-                "--log-opt",
-                "max-file=2",
-                "--log-opt",
-                "compress=false",
+            "--log-driver",
+            "local",
+            "--log-opt",
+            "max-size=1m",
+            "--log-opt",
+            "max-file=2",
+            "--log-opt",
+            "compress=false",
             "--pids-limit",
             str(limits.pids),
             "--memory",

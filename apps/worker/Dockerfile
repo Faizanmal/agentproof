@@ -18,4 +18,6 @@ WORKDIR /app
 COPY --from=build /app/.venv /app/.venv
 ENV PATH="/app/.venv/bin:$PATH" PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 USER 10001:10001
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+  CMD arq --check agentproof_worker.main.WorkerSettings
 CMD ["arq", "agentproof_worker.main.WorkerSettings"]

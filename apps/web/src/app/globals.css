@@ -156,6 +156,10 @@ nav {
   font-size: 14px;
 }
 nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 4px;
   color: var(--ap-muted);
 }
 nav a:hover,
@@ -708,7 +712,14 @@ nav a:hover,
 .auth-submit { width: 100%; margin-top: 3px; }
 .form-hint,.field-note { margin: -6px 0 0; color: var(--ap-muted); font-size: 10px; line-height: 1.55; }
 .auth-switch,.auth-privacy { color: var(--ap-muted); font-size: 10px; text-align: center; }
-.auth-switch a { color: #176449; font-weight: 700; }
+.auth-switch a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 6px;
+  color: #176449;
+  font-weight: 700;
+}
 .auth-privacy { margin: 17px 0 0; padding-top: 13px; border-top: 1px solid var(--line); }
 .skip-link { z-index: 200; }
 .site-footer { font-family: inherit; font-size: 10px; }

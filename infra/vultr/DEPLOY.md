@@ -132,6 +132,20 @@ The public `/qa-fixture/` page is a separate static heading fixture (no forms).
 Form/subscription demos use the local owned fixture under `tests/fixtures/site`
 and require explicit owner approval before any public deploy of that app.
 
+## Sandbox broker systemd unit (one-time)
+
+On the sandbox VM, after `/etc/agentproof/broker.env` and
+`/opt/agentproof/.venv-broker` exist:
+
+```sh
+sudo bash /opt/agentproof/infra/vultr/scripts/install_broker_service.sh
+sudo bash /opt/agentproof/infra/vultr/scripts/ap.sh broker 50
+```
+
+`deploy_sandbox.sh` rebuilds the runner digest and restarts the unit; it does
+**not** create the unit the first time. If restart fails with
+`Unit agentproof-broker.service not found`, run the install script above.
+
 ## Sandbox boundary
 
 Run broker as a dedicated host service with private TLS and HMAC, never public.

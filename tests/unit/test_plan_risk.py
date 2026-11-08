@@ -47,9 +47,7 @@ def _plan(*, value_ref: str | None = None, fill: bool = False) -> QAPlanV1:
                         role="heading",
                         name="AgentProof owned fixture",
                     ),
-                    assertion=Assertion(
-                        kind="text", expected="AgentProof owned fixture"
-                    ),
+                    assertion=Assertion(kind="text", expected="AgentProof owned fixture"),
                     requires_approval=False,
                 ),
             ]

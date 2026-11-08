@@ -24,9 +24,7 @@ def normalize_email(value: str) -> str:
     from email_validator import EmailNotValidError, validate_email
 
     try:
-        return str(
-            validate_email(value.strip(), check_deliverability=False).normalized
-        ).casefold()
+        return str(validate_email(value.strip(), check_deliverability=False).normalized).casefold()
     except EmailNotValidError:
         raise ValueError("Invalid email") from None
 

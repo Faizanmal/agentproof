@@ -5,3 +5,5 @@ packages:
 engineStrict: true
 saveExact: true
 storeDir: .cache/pnpm-store
+overrides:
+  "minimatch@10": 11.0.1

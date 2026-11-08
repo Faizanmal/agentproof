@@ -64,6 +64,12 @@ elif [[ -x /opt/agentproof/.venv-broker/bin/pip ]]; then
 fi
 
 echo "==> restart broker"
+if ! systemctl cat agentproof-broker.service &>/dev/null; then
+  echo "agentproof-broker.service is not installed."
+  echo "Install once with:"
+  echo "  sudo bash $ROOT/infra/vultr/scripts/install_broker_service.sh"
+  exit 1
+fi
 systemctl restart agentproof-broker
 sleep 2
 systemctl is-active agentproof-broker

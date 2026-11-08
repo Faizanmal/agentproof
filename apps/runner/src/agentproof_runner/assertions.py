@@ -6,7 +6,8 @@ from datetime import UTC, datetime
 from typing import Any
 
 from .contracts import Step
-from .locators import locate, resolve_locator
+from .locators import locate
+from .locators import resolve_locator as resolve_locator
 from .policy import PolicyDenied
 from .redaction import redact_text
 

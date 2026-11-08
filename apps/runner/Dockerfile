@@ -32,6 +32,8 @@ RUN /app/.venv/bin/python -m playwright install-deps chromium \
     && chown -R 10001:10001 /app
 ENV PATH="/app/.venv/bin:$PATH"
 USER 10001:10001
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+  CMD python -c "import agentproof_runner"
 ENTRYPOINT ["agentproof-runner"]
 
 # Opt-in CI/manual real-browser gate. Placed AFTER runtime so legacy builders with

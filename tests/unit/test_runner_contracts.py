@@ -45,7 +45,9 @@ def test_assertion_contract_rejects_non_boolean_visibility() -> None:
         Assertion(kind="visible", expected="yes")
 
 
-def test_missing_heading_is_assertion_fail_not_policy_error() -> None:
+def test_missing_heading_is_assertion_fail_not_policy_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from types import SimpleNamespace
 
     from agentproof_runner.assertions import observe_assertion
@@ -79,14 +81,8 @@ def test_missing_heading_is_assertion_fail_not_policy_error() -> None:
     def fake_resolve(_page: object, _target: object) -> tuple[object, int]:
         return _EmptyLocator(), 0
 
-    import agentproof_runner.assertions as assertions_mod
-
-    original = assertions_mod.resolve_locator
-    assertions_mod.resolve_locator = fake_resolve  # type: ignore[assignment]
-    try:
-        result = observe_assertion(page, step)
-    finally:
-        assertions_mod.resolve_locator = original  # type: ignore[assignment]
+    monkeypatch.setattr("agentproof_runner.assertions.resolve_locator", fake_resolve)
+    result = observe_assertion(page, step)
     assert result["status"] == "FAIL"
     assert result["expected"] == "Judge audit nonexistent heading 20261108"
     assert result["observed"] is None

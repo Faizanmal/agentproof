@@ -392,9 +392,7 @@ async def forgot_password(
 
 @router.post("/auth/reset-password", response_model=Message)
 async def reset_password(body: PasswordResetInput, request: Request, session: DB) -> Message:
-    await rate_limit(
-        request, "reset-password", digest(body.token.get_secret_value()), 10, 3600
-    )
+    await rate_limit(request, "reset-password", digest(body.token.get_secret_value()), 10, 3600)
     row = (
         (
             await session.execute(
@@ -423,9 +421,7 @@ async def reset_password(body: PasswordResetInput, request: Request, session: DB
         raise HTTPException(400, "INVALID_RESET")
     hashed = await run_in_threadpool(passwords.hash, body.password.get_secret_value())
     await session.execute(
-        update(db.password_resets)
-        .where(db.password_resets.c.id == row["id"])
-        .values(used_at=now())
+        update(db.password_resets).where(db.password_resets.c.id == row["id"]).values(used_at=now())
     )
     # Completing a reset proves inbox control for this address.
     values: dict[str, Any] = {"password_hash": hashed}
@@ -441,9 +437,7 @@ async def reset_password(body: PasswordResetInput, request: Request, session: DB
 
 
 @router.post("/auth/resend-verification", response_model=VerificationMailSent)
-async def resend_verification(
-    request: Request, session: DB, user: User
-) -> VerificationMailSent:
+async def resend_verification(request: Request, session: DB, user: User) -> VerificationMailSent:
     config = settings(request)
     if not mail_ready(config):
         raise HTTPException(503, "MAIL_NOT_CONFIGURED")
