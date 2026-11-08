@@ -1,7 +1,10 @@
 """Portable repository commands; no implicit provisioning or browser execution."""
 
 import argparse
+import base64
 import os
+import re
+import secrets
 import shutil
 import signal
 import subprocess
@@ -10,7 +13,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 PNPM = "pnpm.cmd" if os.name == "nt" else "pnpm"
-COMPOSE = ["docker", "compose", "-f", "infra/compose.dev.yml"]
+COMPOSE = ["docker", "compose", "--env-file", ".env", "-f", "infra/compose.dev.yml"]
 
 
 def run(command: list[str], *, timeout: int = 600) -> None:
@@ -19,7 +22,9 @@ def run(command: list[str], *, timeout: int = 600) -> None:
 
 
 def uv(*arguments: str) -> list[str]:
-    return ["uv", "run", "--frozen", "--all-packages", *arguments]
+    # Bootstrap owns dependency installation. Running commands from an already
+    # synced workspace must not trigger network build isolation on every call.
+    return ["uv", "run", "--project", ".", "--frozen", "--no-sync", *arguments]
 
 
 def dev(api_port: int, web_port: int) -> None:
@@ -39,6 +44,7 @@ def dev(api_port: int, web_port: int) -> None:
             "--no-access-log",
         ),
         [PNPM, "--filter", "web", "dev", "--hostname", "127.0.0.1", "--port", str(web_port)],
+        uv("arq", "agentproof_worker.main.WorkerSettings"),
     ]
     processes: list[subprocess.Popen[bytes]] = []
 
@@ -52,7 +58,7 @@ def dev(api_port: int, web_port: int) -> None:
         while True:
             for process in processes:
                 if process.poll() is not None:
-                    raise RuntimeError("A development service exited; stopping both services.")
+                    raise RuntimeError("A development service exited; stopping all services.")
             try:
                 processes[0].wait(timeout=0.5)
             except subprocess.TimeoutExpired:
@@ -94,8 +100,21 @@ def main() -> None:
             "build",
             "smoke",
             "contracts",
+            "integration",
+            "e2e",
             "security",
+            "security-audit",
             "format",
+            "quality-gate",
+            "containment",
+            "restore-test",
+            "emergency-stop",
+            "demo-seed",
+            "demo-run",
+            "demo-reset",
+            "demo-fixture-bug-on",
+            "demo-fixture-bug-off",
+            "demo-containment",
         ],
     )
     parser.add_argument("--api-port", type=int, default=8000)
@@ -104,24 +123,46 @@ def main() -> None:
     if not all(1 <= port <= 65535 for port in (args.api_port, args.web_port)):
         parser.error("Ports must be between 1 and 65535")
     os.environ.setdefault("UV_CACHE_DIR", str(ROOT / ".cache/uv"))
+    os.environ.setdefault("UV_TOOL_DIR", str(ROOT / ".cache/uv/tools"))
     os.environ.setdefault("npm_config_cache", str(ROOT / ".cache/npm"))
+    workspace_sources = [
+        str(ROOT / "apps" / package / "src") for package in ("api", "worker", "runner", "broker")
+    ]
+    existing_pythonpath = os.environ.get("PYTHONPATH")
+    os.environ["PYTHONPATH"] = os.pathsep.join(
+        workspace_sources + ([existing_pythonpath] if existing_pythonpath else [])
+    )
     if args.task == "bootstrap":
         run([PNPM, "install", "--frozen-lockfile"])
         run(["uv", "sync", "--frozen", "--all-packages"])
         if not (ROOT / ".env").exists():
             shutil.copyfile(ROOT / ".env.example", ROOT / ".env")
+        env_path = ROOT / ".env"
+        env_text = env_path.read_text(encoding="utf-8")
+        if (
+            os.environ.get("APP_ENV", "development") != "production"
+            and re.search(r"(?m)^APP_ENV\s*=\s*[\"']?production", env_text) is None
+        ):
+            for key, value in (
+                ("SESSION_SIGNING_KEY", secrets.token_urlsafe(48)),
+                ("MASTER_ENCRYPTION_KEY", base64.b64encode(secrets.token_bytes(32)).decode()),
+            ):
+                env_text = re.sub(r"(?m)^" + key + r"=[ \t]*$", key + "=" + value, env_text)
+            env_path.write_text(env_text, encoding="utf-8")
+            if os.name != "nt":
+                env_path.chmod(0o600)
     elif args.task == "dev":
         dev(args.api_port, args.web_port)
     elif args.task == "db-up":
-        run([*COMPOSE, "up", "-d", "--wait", "postgres", "redis"], timeout=180)
+        run([*COMPOSE, "up", "-d", "--wait", "redis"], timeout=180)
     elif args.task == "migrate":
         run(uv("alembic", "-c", "apps/api/alembic.ini", "upgrade", "head"))
     elif args.task == "test":
         run(uv("pytest"))
         run(uv("python", "scripts/export_contracts.py", "--check"))
     elif args.task == "lint":
-        run(uv("ruff", "check", "."))
-        run(uv("ruff", "format", "--check", "."))
+        run(uv("ruff", "check", "apps", "scripts", "tests", "pyproject.toml"))
+        run(uv("ruff", "format", "--check", "apps", "scripts", "tests", "pyproject.toml"))
         run([PNPM, "lint"])
         run([PNPM, "format:check"])
     elif args.task == "typecheck":
@@ -129,8 +170,12 @@ def main() -> None:
         run([PNPM, "typecheck"])
     elif args.task == "build":
         run([PNPM, "--filter", "web", "build"])
-        for package in ("api", "worker", "runner"):
+        for package in ("api", "worker", "runner", "broker"):
             run(["uv", "build", "--package", f"agentproof-{package}", "--out-dir", ".cache/dist"])
+    elif args.task == "integration":
+        run(uv("python", "scripts/integration.py"), timeout=900)
+    elif args.task == "e2e":
+        run(uv("python", "scripts/integration.py", "--e2e"), timeout=1200)
     elif args.task == "contracts":
         run(uv("python", "scripts/export_contracts.py"))
         run([PNPM, "--filter", "@agentproof/contracts", "generate"])
@@ -148,6 +193,47 @@ def main() -> None:
         )
     elif args.task == "security":
         run(uv("python", "scripts/security_check.py"))
+    elif args.task == "security-audit":
+        run(uv("python", "scripts/security_audit.py"), timeout=900)
+    elif args.task == "containment":
+        run([sys.executable, "scripts/containment_check.py"], timeout=45)
+    elif args.task == "restore-test":
+        run(uv("python", "scripts/restore_test.py"), timeout=600)
+    elif args.task == "emergency-stop":
+        run(uv("python", "scripts/emergency_stop.py"), timeout=45)
+    elif args.task == "quality-gate":
+        run(uv("ruff", "check", "apps", "scripts", "tests", "pyproject.toml"))
+        run(uv("ruff", "format", "--check", "apps", "scripts", "tests", "pyproject.toml"))
+        run([PNPM, "lint"])
+        run(uv("mypy"))
+        run([PNPM, "typecheck"])
+        run(
+            uv(
+                "--with",
+                "pytest-cov==7.0.0",
+                "pytest",
+                "--cov=agentproof_api",
+                "--cov=agentproof_worker",
+                "--cov=agentproof_runner",
+                "--cov=agentproof_broker",
+            )
+        )
+        run(uv("python", "scripts/export_contracts.py", "--check"))
+        run(uv("python", "scripts/security_check.py"))
+        run([PNPM, "--filter", "web", "build"], timeout=600)
+    elif args.task.startswith("demo-"):
+        commands = {
+            "demo-seed": "seed",
+            "demo-run": "run",
+            "demo-reset": "reset",
+            "demo-fixture-bug-on": "bug-on",
+            "demo-fixture-bug-off": "bug-off",
+            "demo-containment": "containment",
+        }
+        command = [*uv("python", "scripts/demo.py", commands[args.task])]
+        if args.task == "demo-reset" and os.environ.get("DEMO_RUN_ID"):
+            command.extend(["--run-id", os.environ["DEMO_RUN_ID"]])
+        run(command, timeout=900 if args.task == "demo-run" else 120)
     elif args.task == "format":
         run(uv("ruff", "check", "--fix", "."))
         run(uv("ruff", "format", "."))

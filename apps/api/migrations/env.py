@@ -1,5 +1,6 @@
 import asyncio
 
+from agentproof_api.db import metadata
 from agentproof_api.settings import Settings
 from alembic import context
 from sqlalchemy import pool
@@ -11,6 +12,7 @@ def offline() -> None:
     context.configure(
         url=Settings().database_url.get_secret_value(),
         literal_binds=True,
+        target_metadata=metadata,
         dialect_opts={"paramstyle": "named"},
     )
     with context.begin_transaction():
@@ -25,7 +27,7 @@ async def online() -> None:
         async with engine.connect() as connection:
 
             def migrate(sync_connection: Connection) -> None:
-                context.configure(connection=sync_connection)
+                context.configure(connection=sync_connection, target_metadata=metadata)
                 with context.begin_transaction():
                     context.run_migrations()
 

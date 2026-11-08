@@ -45,8 +45,22 @@ def test_execution_scaffolds_fail_closed(component: str) -> None:
     checked = subprocess.run([*command, "--check"], capture_output=True, text=True, timeout=10)
     assert checked.returncode == 0
     assert '"execution_enabled": false' in checked.stdout
-    refused = subprocess.run(command, capture_output=True, text=True, timeout=10)
-    assert refused.returncode == 2
+    if component == "runner":
+        refused = subprocess.run(command, capture_output=True, text=True, timeout=10)
+        assert refused.returncode == 2
+    else:
+        configured = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "from agentproof_worker.main import WorkerSettings; "
+                "assert WorkerSettings.job_timeout >= 750 and WorkerSettings.functions",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        assert configured.returncode == 0, configured.stderr
 
 
 def test_env_template_contains_all_required_names() -> None:

@@ -1,18 +1,41 @@
-# Packaging scaffold only: no browser binaries or broker job protocol in Phase 01.
+# Build this image in the isolated sandbox image pipeline, inspect it, then configure the
+# broker with the resulting immutable registry@sha256 digest. Never deploy by mutable tag.
 FROM ghcr.io/astral-sh/uv:0.8.3 AS uv
 FROM python:3.13.1-slim-bookworm AS build
 COPY --from=uv /uv /usr/local/bin/uv
+ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 WORKDIR /app
 COPY pyproject.toml uv.lock ./
-COPY apps/runner apps/runner
 COPY apps/api/pyproject.toml apps/api/pyproject.toml
 COPY apps/worker/pyproject.toml apps/worker/pyproject.toml
-RUN uv sync --frozen --no-dev --package agentproof-runner --no-editable
+COPY apps/broker/pyproject.toml apps/broker/pyproject.toml
+COPY apps/runner apps/runner
+# Workspace packages default to editable; --no-editable must land real modules in
+# site-packages because the runtime stage only copies /.venv (not apps/runner/src).
+# Do not use `uv run` after sync: it re-syncs workspace members as editable and
+# strips the installed package from site-packages.
+RUN uv sync --frozen --no-dev --package agentproof-runner --no-editable \
+    && /app/.venv/bin/playwright install --with-deps chromium \
+    && test ! -e /app/.venv/lib/python3.13/site-packages/_editable_impl_agentproof_runner.pth \
+    && /app/.venv/bin/python -c "import agentproof_runner, pathlib; p=pathlib.Path(agentproof_runner.__file__); assert p.is_file() and 'site-packages' in p.as_posix(), p"
+
+# Opt-in CI/manual real-browser gate. This stage is not used for the production runner image.
+FROM build AS browser-test
+RUN uv sync --frozen --package agentproof-runner --group dev
+COPY tests/e2e /tests/e2e
+ENV PYTHONPATH=/app/apps/runner/src AGENTPROOF_RUNNER_BROWSER=1
+CMD ["uv", "run", "--frozen", "--package", "agentproof-runner", "pytest", "/tests/e2e", "-q"]
 
 FROM python:3.13.1-slim-bookworm AS runtime
-RUN groupadd --gid 10001 app && useradd --uid 10001 --gid app --no-create-home app
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright HOME=/tmp PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /app
+COPY --from=uv /uv /usr/local/bin/uv
 COPY --from=build /app/.venv /app/.venv
-ENV PATH="/app/.venv/bin:$PATH" PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+COPY --from=build /ms-playwright /ms-playwright
+RUN /app/.venv/bin/python -m playwright install-deps chromium \
+    && groupadd --gid 10001 app \
+    && useradd --uid 10001 --gid app --no-create-home app \
+    && chown -R 10001:10001 /app
+ENV PATH="/app/.venv/bin:$PATH"
 USER 10001:10001
-CMD ["agentproof-runner", "--check"]
+ENTRYPOINT ["agentproof-runner"]

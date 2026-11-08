@@ -23,10 +23,10 @@ export default function RootLayout({
           </a>
           <div className="site-wrap">
             <SiteHeader />
-            <main id="main">{children}</main>
+            <div id="main">{children}</div>
             <footer className="site-footer">
               <span>AgentProof / Authorized browser QA</span>
-              <span>Phase 01 · Local foundation</span>
+              <span>Evidence before confidence</span>
             </footer>
           </div>
         </ThemeProvider>

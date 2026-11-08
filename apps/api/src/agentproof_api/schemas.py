@@ -32,3 +32,4 @@ class Problem(Contract):
     detail: str
     request_id: str
     dependencies: Dependencies | None = None
+    code: str | None = None

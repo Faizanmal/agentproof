@@ -79,7 +79,11 @@ def test_server_generates_request_ids() -> None:
 )
 def test_http_errors_are_problems(method: str, path: str, status: int) -> None:
     with TestClient(application()) as client:
-        response = client.request(method, path)
+        response = client.request(
+            method,
+            path,
+            headers={"Origin": "http://localhost:3000", "Content-Type": "application/json"},
+        )
     assert response.status_code == status
     assert response.headers["content-type"] == "application/problem+json"
     assert response.json()["status"] == status

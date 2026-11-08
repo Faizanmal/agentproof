@@ -1,0 +1,62 @@
+# Manually gated image publish only. Does not provision Vultr VMs or deploy on push.
+# Requires a protected GitHub Environment named production plus registry secrets.
+name: Publish production images
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: Immutable tag suffix (git SHA or semver). Digests are recorded after push.
+        required: true
+        type: string
+      confirm:
+        description: Type PUBLISH to confirm a deliberate release build.
+        required: true
+        type: string
+permissions:
+  contents: read
+  packages: write
+concurrency:
+  group: publish-production
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: github.event.inputs.confirm == 'PUBLISH'
+    runs-on: ubuntu-24.04
+    environment: production
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: { persist-credentials: false }
+      - name: Require private registry configuration
+        shell: bash
+        run: |
+          if [ -z "${{ secrets.PRODUCTION_REGISTRY }}" ]; then
+            echo 'BLOCKED: set PRODUCTION_REGISTRY, PRODUCTION_REGISTRY_USERNAME, and PRODUCTION_REGISTRY_PASSWORD in the production environment.'
+            exit 1
+          fi
+      - name: Log in to private registry
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef
+        with:
+          registry: ${{ secrets.PRODUCTION_REGISTRY }}
+          username: ${{ secrets.PRODUCTION_REGISTRY_USERNAME }}
+          password: ${{ secrets.PRODUCTION_REGISTRY_PASSWORD }}
+      - name: Build and push immutable tags
+        shell: bash
+        env:
+          REGISTRY: ${{ secrets.PRODUCTION_REGISTRY }}
+          TAG: ${{ github.event.inputs.image_tag }}
+        run: |
+          set -euo pipefail
+          {
+            echo '## Published digests'
+            echo
+          } >> "$GITHUB_STEP_SUMMARY"
+          for pair in web:apps/web/Dockerfile api:apps/api/Dockerfile worker:apps/worker/Dockerfile runner:apps/runner/Dockerfile; do
+            name="${pair%%:*}"
+            file="${pair##*:}"
+            image="${REGISTRY}/agentproof-${name}:${TAG}"
+            docker build -f "$file" -t "$image" .
+            docker push "$image"
+            digest="$(docker image inspect --format '{{index .RepoDigests 0}}' "$image")"
+            echo "- ${name}: \`${digest}\`" >> "$GITHUB_STEP_SUMMARY"
+          done

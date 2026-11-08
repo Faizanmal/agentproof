@@ -7,6 +7,7 @@ COPY pyproject.toml uv.lock ./
 COPY apps/api apps/api
 COPY apps/worker/pyproject.toml apps/worker/pyproject.toml
 COPY apps/runner/pyproject.toml apps/runner/pyproject.toml
+COPY apps/broker/pyproject.toml apps/broker/pyproject.toml
 RUN uv sync --frozen --no-dev --package agentproof-api --no-editable
 
 FROM python:3.13.1-slim-bookworm AS runtime

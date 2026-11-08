@@ -31,6 +31,8 @@ def main() -> None:
     if findings:
         for file_name, items in findings.items():
             print(f"Potential secrets: {Path(file_name).relative_to(ROOT)} ({len(items)} findings)")
+            for item in items:
+                print(f"  line {item['line_number']}: {item['type']}")
         raise SystemExit(1)
     print("PASS: detect-secrets found no secrets in tracked or nonignored candidate source files")
 

@@ -7,13 +7,16 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from redis.asyncio import Redis
-from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from starlette.exceptions import HTTPException
 from starlette.responses import Response
 
 from agentproof_api import __version__
+from agentproof_api.auth import check_origin, development_mail_router
+from agentproof_api.auth import router as auth_router
 from agentproof_api.dependencies import DependencyProbe, ServiceProbe
 from agentproof_api.logging import configure_logging
+from agentproof_api.routes import router as resource_router
 from agentproof_api.schemas import Health, Problem, Ready, Version
 from agentproof_api.settings import Settings
 
@@ -40,6 +43,8 @@ def create_app(settings: Settings | None = None, probe: DependencyProbe | None =
         engine = create_async_engine(config.database_url.get_secret_value(), pool_pre_ping=True)
         redis: Redis = Redis.from_url(config.redis_url.get_secret_value())
         app.state.probe = ServiceProbe(engine, redis, config.dependency_timeout_seconds)
+        app.state.redis = redis
+        app.state.session_factory = async_sessionmaker(engine, expire_on_commit=False)
         try:
             yield
         finally:
@@ -52,10 +57,30 @@ def create_app(settings: Settings | None = None, probe: DependencyProbe | None =
         title="AgentProof API",
         version=__version__,
         lifespan=lifespan,
+        responses={
+            status: {
+                "model": Problem,
+                "content": {
+                    "application/problem+json": {"schema": {"$ref": "#/components/schemas/Problem"}}
+                },
+            }
+            for status in (400, 401, 403, 404, 409, 415, 422, 429, 500, 501, 502, 503, 504)
+        },
         openapi_url="/api/v1/openapi.json" if config.app_env != "production" else None,
         docs_url="/api/v1/docs" if config.app_env != "production" else None,
         redoc_url=None,
     )
+
+    app.state.settings = config
+    app.include_router(auth_router)
+    app.include_router(development_mail_router(config))
+    app.include_router(resource_router)
+    from agentproof_api.target_routes import router as target_router
+
+    app.include_router(target_router)
+    from agentproof_api.plan_routes import router as plan_router
+
+    app.include_router(plan_router)
 
     @app.middleware("http")
     async def request_context(
@@ -65,7 +90,23 @@ def create_app(settings: Settings | None = None, probe: DependencyProbe | None =
         request.state.request_id = str(uuid4())
         start = perf_counter()
         try:
+            if request.url.path.startswith("/api/v1/") and request.method not in (
+                "GET",
+                "HEAD",
+                "OPTIONS",
+            ):
+                check_origin(request, config)
             response = await call_next(request)
+        except HTTPException as error:
+            response = problem_response(
+                Problem(
+                    title="Request Rejected",
+                    status=error.status_code,
+                    detail="The request was rejected.",
+                    code=str(error.detail),
+                    request_id=request.state.request_id,
+                )
+            )
         except Exception:
             response = problem_response(
                 Problem(
@@ -92,13 +133,28 @@ def create_app(settings: Settings | None = None, probe: DependencyProbe | None =
 
     @app.exception_handler(HTTPException)
     async def http_error(request: Request, exc: HTTPException) -> JSONResponse:
-        titles = {404: "Not Found", 405: "Method Not Allowed"}
+        titles = {
+            400: "Bad Request",
+            401: "Unauthorized",
+            403: "Forbidden",
+            404: "Not Found",
+            405: "Method Not Allowed",
+            409: "Conflict",
+            415: "Unsupported Media Type",
+            429: "Too Many Requests",
+            502: "Bad Gateway",
+            503: "Service Unavailable",
+            504: "Gateway Timeout",
+        }
         title = titles.get(exc.status_code, "Request Failed")
         return problem_response(
             Problem(
                 title=title,
                 status=exc.status_code,
                 detail=title,
+                code=exc.detail
+                if isinstance(exc.detail, str) and exc.detail.replace("_", "").isupper()
+                else None,
                 request_id=request.state.request_id,
             )
         )

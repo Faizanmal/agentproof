@@ -1,18 +1,24 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { ShieldCheck } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 export function SiteHeader() {
+  const pathname = usePathname();
+  if (pathname === "/app" || pathname.startsWith("/app/")) return null;
   return (
     <header className="site-header">
       <Link className="brand" href="/" aria-label="AgentProof home">
         <span className="brand-icon">
           <ShieldCheck size={23} aria-hidden="true" />
         </span>
-        AgentProof<span className="stage">FOUNDATION</span>
+        AgentProof<span className="stage">QA WORKSPACE</span>
       </Link>
       <nav aria-label="Main navigation">
-        <Link href="/projects">Projects</Link>
-        <Link href="/auth">Sign in</Link>
+        <Link href="/app/projects">Workspace</Link>
+        <Link href="/login">Sign in</Link>
+        <Link className="header-create" href="/register">Create account</Link>
         <ThemeToggle />
       </nav>
     </header>

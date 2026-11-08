@@ -1,0 +1,73 @@
+"""Explicit operator delivery of the durable, encrypted verification outbox."""
+
+import asyncio
+import smtplib
+import ssl
+from email.message import EmailMessage
+
+from sqlalchemy import select, update
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+from agentproof_api import db
+from agentproof_api.security import decrypt, now
+from agentproof_api.settings import Settings
+
+
+def send_verification(config: Settings, recipient: str, link: str) -> None:
+    if config.mail_backend != "smtp" or not config.smtp_host or not config.mail_from:
+        raise RuntimeError("SMTP is not configured")
+    message = EmailMessage()
+    message["From"], message["To"], message["Subject"] = (
+        config.mail_from,
+        recipient,
+        "Verify your AgentProof email",
+    )
+    message.set_content("Verify your email within one hour:\n" + link)
+    with smtplib.SMTP(config.smtp_host, config.smtp_port, timeout=10) as client:
+        client.ehlo()
+        client.starttls(context=ssl.create_default_context())
+        client.ehlo()
+        if config.smtp_user:
+            client.login(config.smtp_user, config.smtp_password.get_secret_value())
+        client.send_message(message)
+
+
+async def deliver_outbox(config: Settings) -> int:
+    if config.mail_backend != "smtp" or not config.smtp_host or not config.mail_from:
+        raise RuntimeError("SMTP is not configured")
+    engine = create_async_engine(config.database_url.get_secret_value())
+    delivered = 0
+    try:
+        async with async_sessionmaker(engine)() as session, session.begin():
+            rows = (
+                (
+                    await session.execute(
+                        select(db.mail_outbox, db.users.c.email)
+                        .join(db.users, db.users.c.id == db.mail_outbox.c.user_id)
+                        .where(
+                            db.mail_outbox.c.delivered_at.is_(None),
+                            db.mail_outbox.c.expires_at > now(),
+                            db.users.c.disabled_at.is_(None),
+                        )
+                        .order_by(db.mail_outbox.c.created_at)
+                        .limit(20)
+                        .with_for_update(of=db.mail_outbox, skip_locked=True)
+                    )
+                )
+                .mappings()
+                .all()
+            )
+            for row in rows:
+                link = decrypt(
+                    config, row["ciphertext"], f"verification:{row['user_id']}", row["key_version"]
+                )
+                await asyncio.to_thread(send_verification, config, row["email"], link)
+                await session.execute(
+                    update(db.mail_outbox)
+                    .where(db.mail_outbox.c.id == row["id"])
+                    .values(delivered_at=now())
+                )
+                delivered += 1
+        return delivered
+    finally:
+        await engine.dispose()

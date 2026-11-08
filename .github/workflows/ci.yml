@@ -1,4 +1,4 @@
-name: Local foundation checks
+name: AgentProof quality and security gates
 on:
   push:
   pull_request:
@@ -8,62 +8,153 @@ concurrency:
   group: checks-${{ github.ref }}
   cancel-in-progress: true
 jobs:
-  checks:
+  lint:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: .node-version
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 11.18.0
-          run_install: false
-      - uses: actions/setup-python@v5
-        with:
-          python-version-file: .python-version
-      - uses: astral-sh/setup-uv@v6
-        with:
-          version: 0.8.3
-          enable-cache: true
-          cache-dependency-glob: uv.lock
-      - uses: actions/cache@v4
-        with:
-          path: .cache/pnpm-store
-          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: pnpm-${{ runner.os }}-
-      - run: python scripts/manage.py bootstrap
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: { node-version-file: .node-version, cache: pnpm }
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with: { python-version-file: .python-version }
+      - run: corepack enable && corepack prepare pnpm@11.18.0 --activate
+      - run: python -m pip install uv==0.8.3
+      - run: pnpm install --frozen-lockfile
+      - run: uv sync --frozen --all-packages
       - run: python scripts/manage.py lint
+
+  typecheck:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: { node-version-file: .node-version }
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with: { python-version-file: .python-version }
+      - run: corepack enable && corepack prepare pnpm@11.18.0 --activate
+      - run: python -m pip install uv==0.8.3
+      - run: pnpm install --frozen-lockfile
+      - run: uv sync --frozen --all-packages
       - run: python scripts/manage.py typecheck
-      - run: python scripts/manage.py test
-      - run: python scripts/manage.py security
-      - run: python scripts/manage.py build
-      - name: Generated contracts are current
-        run: |
-          python scripts/manage.py contracts
-          git diff --exit-code -- packages/contracts
-      - run: docker compose -f infra/compose.dev.yml config --quiet
-      - run: python scripts/manage.py db-up
+
+  unit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: { node-version-file: .node-version }
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with: { python-version-file: .python-version }
+      - run: corepack enable && corepack prepare pnpm@11.18.0 --activate
+      - run: python -m pip install uv==0.8.3
+      - run: pnpm install --frozen-lockfile
+      - run: uv sync --frozen --all-packages
+      - run: uv run --frozen --all-packages --with pytest-cov==7.0.0 pytest tests/unit --cov=agentproof_api --cov=agentproof_worker --cov=agentproof_runner --cov=agentproof_broker --cov-report=term-missing
+      - run: uv run --frozen --all-packages python scripts/export_contracts.py --check
+
+  integration-postgres-redis:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: { node-version-file: .node-version }
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with: { python-version-file: .python-version }
+      - run: corepack enable && corepack prepare pnpm@11.18.0 --activate
+      - run: python -m pip install uv==0.8.3
+      - run: python scripts/manage.py bootstrap
+      - run: docker compose --env-file .env -f infra/compose.dev.yml --profile local-postgres up -d --wait postgres redis
       - run: python scripts/manage.py migrate
-      - name: HTTP runtime smoke
+      - run: python scripts/manage.py integration
+      - run: python scripts/manage.py restore-test
+      - if: always()
+        run: docker compose --env-file .env -f infra/compose.dev.yml down -v
+
+  frontend-e2e:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: { node-version-file: .node-version }
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with: { python-version-file: .python-version }
+      - run: corepack enable && corepack prepare pnpm@11.18.0 --activate
+      - run: python -m pip install uv==0.8.3
+      - run: python scripts/manage.py bootstrap
+      - run: docker compose --env-file .env -f infra/compose.dev.yml --profile local-postgres up -d --wait postgres redis
+      - run: python scripts/manage.py migrate
+      - run: uv run --frozen --all-packages playwright install --with-deps chromium
+      - name: Run actual frontend against local API
+        shell: bash
         run: |
-          uv run --frozen --all-packages uvicorn agentproof_api.app:create_app --factory --host 127.0.0.1 --port 8000 --no-access-log > /tmp/agentproof-api.log 2>&1 &
-          API_PID=$!
-          pnpm --filter web start --hostname 127.0.0.1 > /tmp/agentproof-web.log 2>&1 &
-          WEB_PID=$!
+          uv run --frozen --all-packages uvicorn agentproof_api.app:create_app --factory --host 127.0.0.1 --port 8000 --no-access-log > /tmp/api.log 2>&1 & API_PID=$!
+          pnpm --filter web dev --hostname 127.0.0.1 --port 3000 > /tmp/web.log 2>&1 & WEB_PID=$!
           trap 'kill "$API_PID" "$WEB_PID" 2>/dev/null || true' EXIT
           for attempt in $(seq 1 60); do
-            if curl -fsS http://127.0.0.1:8000/api/v1/health/ready && curl -fsS http://127.0.0.1:3000/ > /dev/null; then break; fi
+            if curl -fsS http://127.0.0.1:8000/api/v1/health/ready >/dev/null && curl -fsS http://127.0.0.1:3000/ >/dev/null; then break; fi
             sleep 1
           done
-          python scripts/manage.py smoke
-          docker compose -f infra/compose.dev.yml stop redis
-          uv run --frozen --all-packages python scripts/smoke.py --expect-not-ready
-          docker compose -f infra/compose.dev.yml up -d --wait redis
-          python scripts/manage.py smoke
-      - name: Stop local services
-        if: always()
-        run: docker compose -f infra/compose.dev.yml down
+          AGENTPROOF_WEB_BASE_URL=http://127.0.0.1:3000 uv run --frozen --all-packages pytest tests/e2e/test_web_ux.py -q -s
+      - if: always()
+        run: docker compose --env-file .env -f infra/compose.dev.yml down -v
+
+  sandbox-containment:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.AGENTPROOF_SANDBOX_RUNNER == 'true'
+    runs-on: [self-hosted, linux, sandbox-isolated]
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: { persist-credentials: false }
+      - run: python scripts/manage.py containment
+  sandbox-containment-skipped:
+    if: vars.AGENTPROOF_SANDBOX_RUNNER != 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - run: |
+          echo 'SKIPPED: no protected sandbox-isolated runner is configured; containment remains a release blocker.' >> "$GITHUB_STEP_SUMMARY"
+
+  build-images:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: { node-version-file: .node-version }
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with: { python-version-file: .python-version }
+      - run: corepack enable && corepack prepare pnpm@11.18.0 --activate
+      - run: python -m pip install uv==0.8.3
+      - run: pnpm install --frozen-lockfile
+      - run: uv sync --frozen --all-packages
+      - run: docker build -f apps/api/Dockerfile -t agentproof-api:ci .
+      - run: docker build -f apps/worker/Dockerfile -t agentproof-worker:ci .
+      - run: docker build -f apps/runner/Dockerfile -t agentproof-runner:ci .
+      - run: docker build -f apps/web/Dockerfile -t agentproof-web:ci .
+
+  security-audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: { persist-credentials: false, fetch-depth: 0 }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: { node-version-file: .node-version }
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with: { python-version-file: .python-version }
+      - run: corepack enable && corepack prepare pnpm@11.18.0 --activate
+      - run: python -m pip install uv==0.8.3
+      - run: pnpm install --frozen-lockfile
+      - run: uv sync --frozen --all-packages
+      - run: python scripts/manage.py security-audit

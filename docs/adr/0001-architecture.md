@@ -1,7 +1,7 @@
 # ADR 0001: Local foundation and trust boundaries
 
 Date: 2026-11-05
-Status: Accepted for Phase 01; production deployment is not authorized.
+Status: Accepted. Local foundation remains; Challenge 1 production demo is live on Vultr.
 
 ## Context
 

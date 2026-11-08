@@ -5,9 +5,20 @@ description = "AgentProof API and domain services"
 readme = "README.md"
 requires-python = ">=3.13,<3.14"
 dependencies = [
-  "fastapi>=0.115,<1", "pydantic>=2.11,<3", "pydantic-settings>=2.10,<3",
-  "uvicorn>=0.34,<1", "SQLAlchemy[asyncio]>=2.0.41,<3",
-  "asyncpg>=0.30,<1", "alembic>=1.16,<2", "redis>=5.3,<6",
+  "fastapi>=0.115,<1",
+  "pydantic>=2.11,<3",
+  "pydantic-settings>=2.10,<3",
+  "uvicorn>=0.34,<1",
+  "SQLAlchemy[asyncio]>=2.0.41,<3",
+  "asyncpg>=0.30,<1",
+  "alembic>=1.16,<2",
+  "redis>=5.3,<6",
+  "argon2-cffi>=25.1.0",
+  "cryptography>=50.0.2",
+  "email-validator>=2.3.0",
+  "dnspython>=2.9.2",
+  "idna>=3.20",
+  "httpx>=0.28,<1",
 ]
 
 [build-system]

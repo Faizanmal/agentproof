@@ -1,6 +1,2 @@
-# Future Vultr TLS entry point. Not wired to an active deployment.
-# Next.js alone owns /api/v1 rewrites; Caddy forwards the entire origin.
-{$APP_DOMAIN} {
-    encode zstd gzip
-    reverse_proxy web:3000
-}
+# Canonical reviewed routing lives in infra/caddy/Caddyfile.
+# Use that file for production; this former example is intentionally retired.

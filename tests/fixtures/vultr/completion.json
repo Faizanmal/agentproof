@@ -1,0 +1,15 @@
+{
+  "model": "fixture-model",
+  "choices": [
+    {
+      "message": {
+        "content": "{\"schema_version\":\"1.0\",\"goal\":\"Inspect the owned fixture\",\"assumptions\":[],\"risk_level\":\"LOW\",\"steps\":[{\"id\":\"s1\",\"action\":\"navigate\",\"url_path\":\"/\",\"target\":null,\"value_ref\":null,\"assertion\":null,\"requires_approval\":false},{\"id\":\"s2\",\"action\":\"assert_visible\",\"url_path\":null,\"target\":{\"strategy\":\"role\",\"role\":\"heading\",\"name\":\"Demo\"},\"value_ref\":null,\"assertion\":{\"kind\":\"visible\",\"expected\":true},\"requires_approval\":false}],\"success_criteria\":[\"Demo heading is visible\"],\"warnings\":[]}"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 100,
+    "completion_tokens": 80
+  }
+}

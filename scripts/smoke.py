@@ -43,7 +43,7 @@ def main() -> None:
     ) as client:
         for path, text in (
             ("/", "AgentProof"),
-            ("/auth", "not connected"),
+            ("/auth", "Sign in"),
             ("/projects", "Project workspace"),
         ):
             response = client.get(path)
@@ -71,7 +71,7 @@ def main() -> None:
             "proxy_liveness": {"status_code": response.status_code, "body": response.json()},
             "verification": "HTTP assertions only; no browser execution",
         }
-        folder = Path(__file__).resolve().parents[1] / "docs/evidence/phase01"
+        folder = Path(__file__).resolve().parents[1] / "internal-docs/evidence/phase01"
         folder.mkdir(parents=True, exist_ok=True)
         filename = "runtime-not-ready.json" if args.expect_not_ready else "runtime.json"
         (folder / filename).write_text(json.dumps(evidence, indent=2) + "\n", encoding="utf-8")

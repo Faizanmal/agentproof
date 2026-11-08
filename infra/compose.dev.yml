@@ -1,6 +1,7 @@
 name: agentproof-dev
 services:
   postgres:
+    profiles: ["local-postgres"]
     image: postgres:16.11-bookworm
     environment:
       POSTGRES_USER: agentproof
@@ -37,11 +38,13 @@ services:
       dockerfile: apps/api/Dockerfile
     environment:
       APP_ENV: development
-      DATABASE_URL: postgresql+asyncpg://agentproof:agentproof_local_only@postgres:5432/agentproof # pragma: allowlist secret -- public local-only fixture
+      SESSION_SIGNING_KEY: ${SESSION_SIGNING_KEY:-}
+      MASTER_ENCRYPTION_KEY: ${MASTER_ENCRYPTION_KEY:-}
+      PUBLIC_APP_URL: ${PUBLIC_APP_URL:-http://localhost:3000}
+      DATABASE_URL: ${DATABASE_URL_CONTAINER:-postgresql+asyncpg://agentproof:agentproof_local_only@host.docker.internal:5432/agentproof} # pragma: allowlist secret -- public local-only fixture
       REDIS_URL: redis://redis:6379/0
     ports: ["127.0.0.1:${API_PORT:-8000}:8000"]
     depends_on:
-      postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
     read_only: true
     tmpfs: ["/tmp:size=32m"]
@@ -66,6 +69,28 @@ services:
     ports: ["127.0.0.1:${WEB_PORT:-3000}:3000"]
     depends_on:
       api: { condition: service_healthy }
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+  worker:
+    profiles: ["app"]
+    build:
+      context: ..
+      dockerfile: apps/worker/Dockerfile
+    environment:
+      APP_ENV: development
+      DATABASE_URL: ${DATABASE_URL_CONTAINER:-postgresql+asyncpg://agentproof:agentproof_local_only@host.docker.internal:5432/agentproof} # pragma: allowlist secret -- public local-only fixture
+      REDIS_URL: redis://redis:6379/0
+      BROKER_URL: ${BROKER_URL_CONTAINER:-http://host.docker.internal:8090}
+      BROKER_HMAC_KEY: ${BROKER_HMAC_KEY:-}
+      VULTR_INFERENCE_BASE_URL: ${VULTR_INFERENCE_BASE_URL:-https://api.vultrinference.com/v1}
+      VULTR_INFERENCE_MODEL: ${VULTR_INFERENCE_MODEL:-}
+      VULTR_INFERENCE_API_KEY: ${VULTR_INFERENCE_API_KEY:-}
+      MASTER_ENCRYPTION_KEY: ${MASTER_ENCRYPTION_KEY:-}
+      SESSION_SIGNING_KEY: ${SESSION_SIGNING_KEY:-}
+    depends_on:
+      redis: { condition: service_healthy }
+    read_only: true
+    tmpfs: ["/tmp:size=32m"]
     cap_drop: ["ALL"]
     security_opt: ["no-new-privileges:true"]
 volumes:

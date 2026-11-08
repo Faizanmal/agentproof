@@ -1,4 +1,162 @@
-# Intentionally inert. No production services or default credentials in Phase 01.
-# Requires a reviewed production design and explicit resource/deployment approval.
-name: agentproof-production-placeholder
-services: {}
+name: agentproof-production
+x-service: &service
+  restart: unless-stopped
+  security_opt: [no-new-privileges:true]
+  logging:
+    driver: json-file
+    options: {max-size: 10m, max-file: '3'}
+x-app: &app
+  <<: *service
+  env_file: ["${APP_ENV_FILE:?private production env path required}"]
+  read_only: true
+  cap_drop: [ALL]
+  tmpfs: ["/tmp:size=64m,mode=1777"]
+  networks: [backend, outbound]
+services:
+  web:
+    <<: *service
+    image: ${WEB_IMAGE:?immutable image required}
+    read_only: true
+    cap_drop: [ALL]
+    tmpfs: ["/tmp:size=64m,mode=1777"]
+    networks: [frontend]
+    environment: {NODE_ENV: production, API_INTERNAL_URL: 'http://api:8000'}
+    mem_limit: 512m
+    cpus: 0.5
+    pids_limit: 128
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:3000').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+  api:
+    <<: *app
+    image: ${API_IMAGE:?immutable image required}
+    command: [uvicorn, 'agentproof_api.app:create_app', --factory, --host, 0.0.0.0, --port, '8000', --no-access-log, --proxy-headers, --forwarded-allow-ips, '*']
+    networks: [frontend, backend, outbound]
+    volumes:
+      - artifacts:/var/lib/agentproof/artifacts
+      - ${BROKER_CA_BUNDLE:-/etc/agentproof/ca-bundle.crt}:/etc/agentproof/ca-bundle.crt:ro
+    mem_limit: 768m
+    cpus: 1.0
+    pids_limit: 128
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health/ready',timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+  worker:
+    <<: *app
+    image: ${WORKER_IMAGE:?immutable image required}
+    profiles: [execution]
+    volumes:
+      - artifacts:/var/lib/agentproof/artifacts
+      - ${BROKER_CA_BUNDLE:-/etc/agentproof/ca-bundle.crt}:/etc/agentproof/ca-bundle.crt:ro
+    mem_limit: 768m
+    cpus: 1.0
+    pids_limit: 128
+    stop_grace_period: 120s
+    depends_on:
+      api: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, arq, --check, agentproof_worker.main.WorkerSettings]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+  migrate:
+    <<: *app
+    image: ${API_IMAGE:?immutable image required}
+    profiles: [maintenance]
+    restart: 'no'
+    command: [alembic, -c, apps/api/alembic.ini, upgrade, head]
+    mem_limit: 512m
+    cpus: 0.5
+    pids_limit: 64
+    depends_on:
+      postgres: {condition: service_healthy}
+  artifacts-init:
+    <<: *service
+    image: ${API_IMAGE:?immutable image required}
+    profiles: [maintenance]
+    restart: 'no'
+    user: '0:0'
+    network_mode: none
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [CHOWN, FOWNER, DAC_OVERRIDE]
+    volumes: [artifacts:/var/lib/agentproof/artifacts]
+    command: [sh, -c, 'chown 10001:10001 /var/lib/agentproof/artifacts && chmod 700 /var/lib/agentproof/artifacts']
+    mem_limit: 64m
+    pids_limit: 16
+  postgres:
+    <<: *service
+    image: postgres:17.6-bookworm
+    env_file: ["${DB_ENV_FILE:?private database env path required}"]
+    networks: [backend]
+    volumes: [postgres:/var/lib/postgresql/data]
+    shm_size: 128m
+    mem_limit: 1024m
+    cpus: 1.0
+    pids_limit: 128
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  redis:
+    <<: *service
+    image: redis:7.4.5-bookworm
+    command: [redis-server, --appendonly, 'yes', --maxmemory, 192mb, --maxmemory-policy, noeviction]
+    networks: [backend]
+    volumes: [redis:/data]
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 64
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+  caddy:
+    <<: *service
+    image: caddy:2.10.2-alpine
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?verified HTTPS hostname required}
+      ACME_EMAIL: ${ACME_EMAIL:?ACME contact required}
+    ports: ['80:80', '443:443']
+    networks: [frontend, outbound]
+    read_only: true
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${WELLKNOWN_DIR:-/var/lib/agentproof/well-known}:/srv/well-known:ro
+      - ${QA_FIXTURE_DIR:-/var/lib/agentproof/qa-fixture}:/srv/qa-fixture:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    tmpfs: ["/tmp:size=16m,mode=1777"]
+    mem_limit: 128m
+    cpus: 0.5
+    pids_limit: 64
+    depends_on:
+      api: {condition: service_healthy}
+      web: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, 'http://127.0.0.1:2019/config/']
+      interval: 30s
+      timeout: 3s
+      retries: 3
+networks:
+  frontend: {internal: true}
+  backend: {internal: true}
+  outbound: {}
+volumes:
+  postgres: {}
+  redis: {}
+  artifacts: {}
+  caddy_data: {}
+  caddy_config: {}
