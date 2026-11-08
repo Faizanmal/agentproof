@@ -121,24 +121,24 @@ Run from repository root on app-vm after configuring all real values.
 Install the short compose wrapper once (hides `--env-file` / `-f`):
 
 ```sh
-sudo bash /opt/agentproof/infra/vultr/scripts/install_dc.sh
+sudo bash /opt/agentproof/infra/vultr/scripts/install_apc.sh
 ```
 
 ```sh
 set -eu
-dc --profile maintenance --profile execution config --quiet
-dc --profile maintenance --profile execution pull
-dc up -d postgres redis
-dc run --rm artifacts-init
+apc --profile maintenance --profile execution config --quiet
+apc --profile maintenance --profile execution pull
+apc up -d postgres redis
+apc run --rm artifacts-init
 # Capture encrypted pre-migration backup first for an existing deployment.
 # Alembic uses PostgreSQL transactional DDL. Serialize deployments externally.
-dc run --rm migrate
-dc up -d --remove-orphans
+apc run --rm migrate
+apc up -d --remove-orphans
 ```
 
 Worker is intentionally behind the execution profile. After containment, recovery
 and tenant gates pass, change emergency stop/registration deliberately and run
-`dc --profile execution up -d --remove-orphans`. Startup dependencies are not a
+`apc --profile execution up -d --remove-orphans`. Startup dependencies are not a
 substitute for a successful migration or external checks. Size VM from measured
 memory/disk rather than raising caps blindly. Authenticated backend broker
 artifact import supports large evidence transfers privately; there is no public
@@ -186,7 +186,7 @@ encrypted copy destination before enabling scheduled backups.
 Record previous image digests and exact Alembic revision. Prefer additive
 migrations compatible with both versions. To roll back code, stop worker, restore
 previous image references and recreate API/web/worker after schema compatibility
-review. A downgrade job uses `dc run --rm migrate alembic -c apps/api/alembic.ini
+review. A downgrade job uses `apc run --rm migrate alembic -c apps/api/alembic.ini
 downgrade "$PREVIOUS_REVISION"`; do not downgrade production unless that exact
 transition was rehearsed against restored disposable data and data loss approved.
 For incompatible schemas restore pre-migration DB plus matching artifacts into

@@ -28,17 +28,18 @@ so raw Docker needs `--env-file` and `-f`. Install the short wrapper once on the
 **app VM**:
 
 ```sh
-sudo bash /opt/agentproof/infra/vultr/scripts/install_dc.sh
+sudo bash /opt/agentproof/infra/vultr/scripts/install_apc.sh
 # (also done automatically by deploy_app.sh / ap.sh)
+# Name is apc — not dc — because Ubuntu ships GNU /usr/bin/dc (desk calculator).
 ```
 
 Then use:
 
 ```sh
-dc ps
-dc logs -f worker
-dc --profile execution up -d
-dc exec -T api python -m agentproof_api.cli deliver-mail
+apc ps
+apc logs -f worker
+apc --profile execution up -d
+apc exec -T api python -m agentproof_api.cli deliver-mail
 ```
 
 ### Logs / ops (short)

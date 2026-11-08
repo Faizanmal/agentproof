@@ -17,11 +17,11 @@ COMPOSE_FILE="${COMPOSE_FILE:-$ROOT/infra/compose.prod.yml}"
 CMD="${1:-}"
 shift || true
 
-# Install short `dc` once so operators never type --env-file / -f.
-bash "$ROOT/infra/vultr/scripts/install_dc.sh" >/dev/null 2>&1 || true
+# Install short `apc` once so operators never type --env-file / -f.
+bash "$ROOT/infra/vultr/scripts/install_apc.sh" >/dev/null 2>&1 || true
 
 dc() {
-  bash "$ROOT/infra/vultr/scripts/dc.sh" --profile execution "$@"
+  bash "$ROOT/infra/vultr/scripts/apc.sh" --profile execution "$@"
 }
 
 usage() {
