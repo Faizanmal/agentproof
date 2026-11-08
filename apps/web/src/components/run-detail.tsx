@@ -26,10 +26,11 @@ export function RunDetail() {
   const [findings, setFindings] = useState<Finding[]>([]);
   const [events, setEvents] = useState<EventRecord[]>([]);
   const [feed, setFeed] = useState<"connecting" | "live" | "disconnected">("connecting");
-  const [loading, setLoading] = useState(true);
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
   const [cancelBusy, setCancelBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const loading = loadedFor !== id;
   const refresh = useCallback(async (signal?: AbortSignal) => {
     const api = createApiClient();
     const [runResult, stepResult, artifactResult, findingResult] = await Promise.all([
@@ -43,11 +44,35 @@ export function RunDetail() {
   }, [id]);
   useEffect(() => {
     const controller = new AbortController();
-    let interval: ReturnType<typeof setInterval> | undefined;
+    const runId = id;
     const api = createApiClient();
-    void refresh(controller.signal).catch((reason: unknown) => { if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : "API unavailable."); }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
-    const source = new EventSource(`/api/v1/runs/${encodeURIComponent(id)}/events?after_id=${lastEventId.current}`, { withCredentials: true });
-    setFeed("connecting");
+    void Promise.all([
+      api.GET("/api/v1/runs/{run_id}", { params: { path: { run_id: runId } }, signal: controller.signal }),
+      api.GET("/api/v1/runs/{run_id}/steps", { params: { path: { run_id: runId }, query: { limit: 100 } }, signal: controller.signal }),
+      api.GET("/api/v1/runs/{run_id}/artifacts", { params: { path: { run_id: runId }, query: { limit: 100 } }, signal: controller.signal }),
+      api.GET("/api/v1/runs/{run_id}/findings", { params: { path: { run_id: runId }, query: { limit: 100 } }, signal: controller.signal }),
+    ])
+      .then(([runResult, stepResult, artifactResult, findingResult]) => {
+        if (controller.signal.aborted) return;
+        if (!runResult.data) {
+          setError(runResult.response.status === 401 ? "Your session expired. Sign in again." : runResult.response.status === 404 ? "Run not found or you do not have access to it." : `Run state could not be loaded (HTTP ${runResult.response.status}).`);
+          setLoadedFor(runId);
+          return;
+        }
+        setRun(runResult.data);
+        setSteps(stepResult.data?.data ?? []);
+        setArtifacts(artifactResult.data?.data ?? []);
+        setFindings(findingResult.data?.data ?? []);
+        setError("");
+        setLoadedFor(runId);
+      })
+      .catch((reason: unknown) => {
+        if (!controller.signal.aborted) {
+          setError(reason instanceof Error ? reason.message : "API unavailable.");
+          setLoadedFor(runId);
+        }
+      });
+    const source = new EventSource(`/api/v1/runs/${encodeURIComponent(runId)}/events?after_id=${lastEventId.current}`, { withCredentials: true });
     source.onopen = () => setFeed("live");
     source.onerror = () => setFeed("disconnected");
     const onEvent = (event: MessageEvent<string>) => {
@@ -58,8 +83,8 @@ export function RunDetail() {
       void refresh(controller.signal).catch(() => undefined);
     };
     for (const name of eventNames) source.addEventListener(name, onEvent as EventListener);
-    interval = setInterval(() => { void refresh(controller.signal).catch((reason: unknown) => { if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : "Run refresh failed."); }); }, 5000);
-    return () => { controller.abort(); source.close(); if (interval) clearInterval(interval); };
+    const interval = setInterval(() => { void refresh(controller.signal).catch((reason: unknown) => { if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : "Run refresh failed."); }); }, 5000);
+    return () => { controller.abort(); source.close(); clearInterval(interval); };
   }, [id, refresh]);
 
   async function cancelRun() {

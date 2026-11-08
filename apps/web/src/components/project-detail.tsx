@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { ArrowRight, Check, Copy, KeyRound, Plus, ShieldCheck, Trash2 } from "lucide-react";
+import { ArrowRight, Check, Copy, KeyRound, ShieldCheck, Trash2 } from "lucide-react";
 import { createApiClient, getIdentity } from "@agentproof/contracts";
 import type { components } from "@agentproof/contracts/schema";
 import { EmptyState, PageHeader, Panel, StatusPill } from "@/components/app-ui";
@@ -24,12 +24,13 @@ export function ProjectDetail({ settings = false }: { settings?: boolean }) {
   const [secrets, setSecrets] = useState<Secret[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [policy, setPolicy] = useState<TargetPolicy | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [proofMethod, setProofMethod] = useState<"https-file" | "dns-txt" | "demo">("https-file");
   const [attested, setAttested] = useState(false);
+  const loading = loadedFor !== id;
 
   const load = useCallback(async (signal?: AbortSignal) => {
     const api = createApiClient();
@@ -50,12 +51,38 @@ export function ProjectDetail({ settings = false }: { settings?: boolean }) {
 
   useEffect(() => {
     const controller = new AbortController();
-    setLoading(true);
-    void load(controller.signal).catch((reason: unknown) => {
-      if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : "The API is unavailable.");
-    }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    const projectId = id;
+    const api = createApiClient();
+    void Promise.all([
+      api.GET("/api/v1/projects/{project_id}", { params: { path: { project_id: projectId } }, signal: controller.signal }),
+      api.GET("/api/v1/projects/{project_id}/authorized-origins", { params: { path: { project_id: projectId } }, signal: controller.signal }),
+      api.GET("/api/v1/projects/{project_id}/secrets", { params: { path: { project_id: projectId } }, signal: controller.signal }),
+      api.GET("/api/v1/projects/{project_id}/plans", { params: { path: { project_id: projectId }, query: { limit: 20 } }, signal: controller.signal }),
+      api.GET("/api/v1/projects/{project_id}/target-policy", { params: { path: { project_id: projectId } }, signal: controller.signal }),
+    ])
+      .then(([projectResult, originResult, secretResult, planResult, policyResult]) => {
+        if (controller.signal.aborted) return;
+        if (!projectResult.data) {
+          setError(projectResult.response.status === 404 ? "This project is missing or you do not have workspace access." : `Project could not load (${projectResult.response.status}).`);
+          setLoadedFor(projectId);
+          return;
+        }
+        setProject(projectResult.data);
+        setOrigins(originResult.data?.data ?? []);
+        setSecrets(secretResult.data?.data ?? []);
+        setPlans(planResult.data?.data ?? []);
+        setPolicy(policyResult.data ?? null);
+        setError("");
+        setLoadedFor(projectId);
+      })
+      .catch((reason: unknown) => {
+        if (!controller.signal.aborted) {
+          setError(reason instanceof Error ? reason.message : "The API is unavailable.");
+          setLoadedFor(projectId);
+        }
+      });
     return () => controller.abort();
-  }, [load]);
+  }, [id]);
 
   async function mutate(callback: (csrf: string) => Promise<string | void>) {
     const identity = await getIdentity();

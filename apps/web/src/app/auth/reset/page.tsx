@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { createApiClient } from "@agentproof/contracts";
 
 export default function ResetPasswordPage() {
   const router = useRouter();
-  const token = useRef("");
+  const [token, setToken] = useState<string | null>(null);
+  const [ready, setReady] = useState(false);
   const [message, setMessage] = useState(
     "Choose a new password of at least 12 characters.",
   );
@@ -17,13 +18,17 @@ export default function ResetPasswordPage() {
   useEffect(() => {
     const value = new URLSearchParams(window.location.hash.slice(1)).get("token") ?? "";
     window.history.replaceState(null, "", window.location.pathname);
-    if (value) token.current = value;
-    else setMessage("This page requires a valid password reset link.");
+    const frame = requestAnimationFrame(() => {
+      setToken(value || null);
+      setReady(true);
+      if (!value) setMessage("This page requires a valid password reset link.");
+    });
+    return () => cancelAnimationFrame(frame);
   }, []);
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!token.current) {
+    if (!token) {
       setMessage("This page requires a valid password reset link.");
       return;
     }
@@ -32,10 +37,10 @@ export default function ResetPasswordPage() {
     setMessage("Updating your password…");
     try {
       const result = await createApiClient().POST("/api/v1/auth/reset-password", {
-        body: { token: token.current, password },
+        body: { token, password },
       });
       if (result.response.ok) {
-        token.current = "";
+        setToken(null);
         setComplete(true);
         setMessage("Password updated. Sign in with your new password.");
         router.prefetch("/login");
@@ -83,7 +88,7 @@ export default function ResetPasswordPage() {
               maxLength={256}
             />
             <p className="form-hint">Use at least 12 characters. Never reuse a test-site password here.</p>
-            <button className="button primary auth-submit" disabled={busy || !token.current}>
+            <button className="button primary auth-submit" disabled={busy || !ready || !token}>
               {busy ? "Please wait…" : "Update password"}
             </button>
           </form>

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { createApiClient, getIdentity } from "@agentproof/contracts";
 import type { components } from "@agentproof/contracts/schema";
 import { PageHeader, Panel } from "@/components/app-ui";
@@ -28,21 +28,46 @@ export function NewPlan() {
   const [allowedPaths, setAllowedPaths] = useState("/*");
   const [duration, setDuration] = useState(180);
   const [busy, setBusy] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  const load = useCallback(async (signal?: AbortSignal) => {
+  const loading = loadedFor !== id;
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const projectId = id;
     const api = createApiClient();
-    const [p, o, t] = await Promise.all([
-      api.GET("/api/v1/projects/{project_id}", { params: { path: { project_id: id } }, signal }),
-      api.GET("/api/v1/projects/{project_id}/authorized-origins", { params: { path: { project_id: id } }, signal }),
-      api.GET("/api/v1/projects/{project_id}/target-policy", { params: { path: { project_id: id } }, signal }),
-    ]);
-    if (!p.data) throw new Error("Project missing or access denied.");
-    setProject(p.data); setOrigins(o.data?.data ?? []); setPolicy(t.data ?? null);
-    if (t.data) { setDuration(Math.min(180, t.data.max_duration_seconds)); setAllowedPaths((t.data.allowed_paths ?? ["/*"]).join("\n")); }
+    void Promise.all([
+      api.GET("/api/v1/projects/{project_id}", { params: { path: { project_id: projectId } }, signal: controller.signal }),
+      api.GET("/api/v1/projects/{project_id}/authorized-origins", { params: { path: { project_id: projectId } }, signal: controller.signal }),
+      api.GET("/api/v1/projects/{project_id}/target-policy", { params: { path: { project_id: projectId } }, signal: controller.signal }),
+    ])
+      .then(([p, o, t]) => {
+        if (controller.signal.aborted) return;
+        if (!p.data) {
+          setError("Project missing or access denied.");
+          setLoadedFor(projectId);
+          return;
+        }
+        setProject(p.data);
+        setOrigins(o.data?.data ?? []);
+        setPolicy(t.data ?? null);
+        if (t.data) {
+          setDuration(Math.min(180, t.data.max_duration_seconds));
+          setAllowedPaths((t.data.allowed_paths ?? ["/*"]).join("\n"));
+        }
+        setError("");
+        setLoadedFor(projectId);
+      })
+      .catch((reason: unknown) => {
+        if (!controller.signal.aborted) {
+          setError(reason instanceof Error ? reason.message : "API unavailable.");
+          setLoadedFor(projectId);
+        }
+      });
+    return () => controller.abort();
   }, [id]);
-  useEffect(() => { const controller = new AbortController(); void load(controller.signal).catch((reason: unknown) => { if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : "API unavailable."); }).finally(() => { if (!controller.signal.aborted) setLoading(false); }); return () => controller.abort(); }, [load]);
+
   const verified = origins.some((origin) => origin.verified_at && new Date(origin.expires_at) > new Date());
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {

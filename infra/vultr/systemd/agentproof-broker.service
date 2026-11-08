@@ -11,17 +11,20 @@ User=root
 Group=root
 WorkingDirectory=/opt/agentproof
 EnvironmentFile=/etc/agentproof/broker.env
-ExecStart=/opt/agentproof/.venv-broker/bin/agentproof-broker
+# Prefer module entry so a broken console-script shebang is easier to diagnose.
+ExecStart=/opt/agentproof/.venv-broker/bin/python -m agentproof_broker.main
 Restart=on-failure
 RestartSec=3
+StartLimitIntervalSec=60
+StartLimitBurst=5
 TimeoutStopSec=30
-# Broker holds Docker lifecycle for runners; limit blast radius of the process itself.
 NoNewPrivileges=true
+# Do not set ProtectHome=true: uv-managed CPython may live under /root/.local
+# unless UV_PYTHON_INSTALL_DIR points at /opt/agentproof.
 ProtectSystem=full
-ProtectHome=true
 PrivateTmp=true
-ReadWritePaths=/var/lib/agentproof-broker /etc/agentproof
-# Docker CLI must remain reachable for disposable runners.
+ReadWritePaths=/var/lib/agentproof-broker /opt/agentproof/.venv-broker /opt/agentproof/uv-python
+# Docker Engine socket for disposable runners.
 SupplementaryGroups=docker
 
 [Install]

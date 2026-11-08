@@ -33,11 +33,8 @@ export default function SettingsPage() {
   }, []);
 
   useEffect(() => {
+    if (!selectedWorkspaceId) return;
     const controller = new AbortController();
-    if (!selectedWorkspaceId) {
-      setMembers([]);
-      return () => controller.abort();
-    }
     void createApiClient()
       .GET("/api/v1/workspaces/{workspace_id}/members", {
         params: { path: { workspace_id: selectedWorkspaceId }, query: { limit: 100 } },
@@ -51,6 +48,7 @@ export default function SettingsPage() {
       });
     return () => controller.abort();
   }, [selectedWorkspaceId]);
+  const visibleMembers = selectedWorkspaceId ? members : [];
 
   async function createWorkspace(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -183,7 +181,7 @@ export default function SettingsPage() {
         {workspaces.length ? (
           <div className="membership-list">
             {workspaces.map((workspace) => {
-              const workspaceMembers = workspace.id === selectedWorkspaceId ? members : [];
+              const workspaceMembers = workspace.id === selectedWorkspaceId ? visibleMembers : [];
               const role = workspaceMembers.find(
                 (member) => member.user_id === identity?.user.id,
               )?.role;

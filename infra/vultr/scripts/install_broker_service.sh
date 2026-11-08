@@ -12,6 +12,8 @@ UNIT_DST=/etc/systemd/system/agentproof-broker.service
 BROKER_ENV="${BROKER_ENV:-/etc/agentproof/broker.env}"
 VENV="${BROKER_VENV:-/opt/agentproof/.venv-broker}"
 BOOTSTRAP_VENV=0
+# Keep host broker on the same minor as apps/* requires-python (>=3.13,<3.14).
+PYTHON_MINOR="3.13"
 
 for arg in "$@"; do
   case "$arg" in
@@ -27,11 +29,25 @@ for arg in "$@"; do
   esac
 done
 
+find_uv() {
+  if command -v uv >/dev/null 2>&1; then
+    command -v uv
+    return 0
+  fi
+  for candidate in /root/.local/bin/uv /usr/local/bin/uv; do
+    if [[ -x "$candidate" ]]; then
+      echo "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
 pick_python() {
-  for candidate in python3.13 python3; do
+  for candidate in "python${PYTHON_MINOR}" python3; do
     if command -v "$candidate" >/dev/null 2>&1; then
       ver="$("$candidate" -c 'import sys; print("%d.%d" % sys.version_info[:2])')"
-      if [[ "$ver" == "3.13" ]]; then
+      if [[ "$ver" == "$PYTHON_MINOR" ]]; then
         echo "$candidate"
         return 0
       fi
@@ -41,16 +57,36 @@ pick_python() {
 }
 
 bootstrap_venv() {
-  local py
-  if ! py="$(pick_python)"; then
-    echo "Python 3.13 is required for agentproof-broker (found none)." >&2
-    exit 1
+  local uv_bin py
+  rm -rf "$VENV"
+  if py="$(pick_python)"; then
+    echo "==> bootstrap broker venv with system $py at $VENV"
+    "$py" -m venv "$VENV"
+    "$VENV/bin/pip" install -U pip hatchling
+    "$VENV/bin/pip" install -e "$ROOT/apps/broker"
+  else
+    echo "==> system Python ${PYTHON_MINOR} missing; using uv to install it"
+    if ! uv_bin="$(find_uv)"; then
+      echo "Installing uv 0.8.3 to /root/.local/bin ..."
+      curl -LsSf https://astral.sh/uv/0.8.3/install.sh | sh
+      uv_bin="$(find_uv)" || {
+        echo "uv install failed; install Python ${PYTHON_MINOR} manually." >&2
+        exit 1
+      }
+    fi
+    # Keep CPython outside /root so systemd can exec it.
+    export UV_PYTHON_INSTALL_DIR="${UV_PYTHON_INSTALL_DIR:-/opt/agentproof/uv-python}"
+    install -d -m 0755 "$UV_PYTHON_INSTALL_DIR"
+    "$uv_bin" python install "$PYTHON_MINOR"
+    "$uv_bin" venv "$VENV" --python "$PYTHON_MINOR"
+    "$uv_bin" pip install --python "$VENV/bin/python" -U pip hatchling
+    "$uv_bin" pip install --python "$VENV/bin/python" -e "$ROOT/apps/broker"
   fi
-  echo "==> bootstrap broker venv with $py at $VENV"
-  "$py" -m venv "$VENV"
-  "$VENV/bin/pip" install -U pip hatchling
-  "$VENV/bin/pip" install -e "$ROOT/apps/broker"
-  test -x "$VENV/bin/agentproof-broker"
+  "$VENV/bin/python" -c "import sys; assert sys.version_info[:2] == (3, 13), sys.version"
+  "$VENV/bin/python" -c "import agentproof_broker.main"
+  test -x "$VENV/bin/python"
+  echo "broker python=$("$VENV/bin/python" --version)"
+  echo "broker python realpath=$(readlink -f "$VENV/bin/python")"
 }
 
 if [[ ! -f "$UNIT_SRC" ]]; then
@@ -66,10 +102,16 @@ if [[ ! -x "$VENV/bin/agentproof-broker" ]]; then
     bootstrap_venv
   else
     echo "Missing $VENV/bin/agentproof-broker." >&2
-    echo "Bootstrap once with:" >&2
+    echo "This host has no apt python${PYTHON_MINOR}; bootstrap with uv:" >&2
     echo "  sudo bash $0 --bootstrap-venv" >&2
     exit 1
   fi
+else
+  "$VENV/bin/python" -c "import sys; assert sys.version_info[:2] == (3, 13), sys.version" || {
+    echo "Existing $VENV is not Python ${PYTHON_MINOR}. Recreate with:" >&2
+    echo "  sudo bash $0 --bootstrap-venv" >&2
+    exit 1
+  }
 fi
 
 install -d -m 0755 /var/lib/agentproof-broker /var/lib/agentproof-broker/artifacts
