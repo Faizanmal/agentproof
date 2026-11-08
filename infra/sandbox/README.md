@@ -26,7 +26,7 @@ The worker claims approved runs, creates signed broker jobs, polls sandbox event
 
 ## Local commands (Linux sandbox host)
 
-1. Build the runner: `docker build -f apps/runner/Dockerfile -t agentproof-runner:local .`
+1. Build the runner: `DOCKER_BUILDKIT=1 docker build --target runtime -f apps/runner/Dockerfile -t agentproof-runner:local .`
 2. Pin `BROKER_RUNNER_IMAGE_DIGEST` to the image id/digest (`--pull=never`).
 3. Generate a private HMAC key; share only with API/worker/broker secret stores.
 4. Leave network at `none` until fixture allowlist + packet tests are in place.

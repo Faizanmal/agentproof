@@ -35,11 +35,10 @@ if [[ "$DO_PULL" -eq 1 ]]; then
 fi
 echo "commit=$(git rev-parse --short HEAD)"
 
-chmod +x "$ROOT/infra/vultr/scripts/dc.sh" 2>/dev/null || true
-ln -sfn "$ROOT/infra/vultr/scripts/dc.sh" /usr/local/bin/dc 2>/dev/null || true
+bash "$ROOT/infra/vultr/scripts/install_dc.sh" >/dev/null || true
 
 dc() {
-  "$ROOT/infra/vultr/scripts/dc.sh" "$@"
+  bash "$ROOT/infra/vultr/scripts/dc.sh" "$@"
 }
 
 echo "==> build api / worker / web (parallel)"

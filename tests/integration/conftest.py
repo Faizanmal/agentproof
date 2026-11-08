@@ -16,8 +16,9 @@ from agentproof_api.auth import database
 from agentproof_api.model_gateway import VultrGateway
 from agentproof_api.planner import gateway
 from agentproof_api.settings import Settings
+from arq import create_pool
+from arq.connections import RedisSettings
 from pydantic import SecretStr
-from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 
@@ -49,7 +50,11 @@ async def environment(tmp_path: Path) -> AsyncIterator[dict[str, Any]]:
         app = create_app(config)
         async with app.router.lifespan_context(app):
             app.state.session_factory = factory
-            redis: Redis = app.state.redis
+            plain_redis = app.state.redis
+            redis = await create_pool(
+                RedisSettings.from_dsn(config.redis_url.get_secret_value())
+            )
+            app.state.redis = redis
             # Isolated Redis DB 15, namespaced keys cleared only for this dedicated test DB.
             await redis.flushdb()
 
@@ -106,5 +111,7 @@ async def environment(tmp_path: Path) -> AsyncIterator[dict[str, Any]]:
                     "provider_responses": provider_responses,
                 }
             await redis.flushdb()
+            await redis.aclose()
+            app.state.redis = plain_redis
         await transaction.rollback()
     await engine.dispose()

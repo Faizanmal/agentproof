@@ -121,7 +121,7 @@ Run from repository root on app-vm after configuring all real values.
 Install the short compose wrapper once (hides `--env-file` / `-f`):
 
 ```sh
-sudo ln -sf /opt/agentproof/infra/vultr/scripts/dc.sh /usr/local/bin/dc
+sudo bash /opt/agentproof/infra/vultr/scripts/install_dc.sh
 ```
 
 ```sh

@@ -9,11 +9,11 @@ export function SiteHeader() {
   if (pathname === "/app" || pathname.startsWith("/app/")) return null;
   return (
     <header className="site-header">
-      <Link className="brand" href="/" aria-label="AgentProof home">
+      <Link className="brand" href="/">
         <span className="brand-icon">
           <ShieldCheck size={23} aria-hidden="true" />
         </span>
-        AgentProof<span className="stage">QA WORKSPACE</span>
+        AgentProof<span className="stage" aria-hidden="true">QA WORKSPACE</span>
       </Link>
       <nav aria-label="Main navigation">
         <Link href="/app/projects">Workspace</Link>

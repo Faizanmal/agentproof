@@ -78,7 +78,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
       <p role="status" aria-live="polite" className="auth-status">{message}</p>
       <form className="connected-form" onSubmit={submit}>
         <label htmlFor="account-email">Email address</label>
-        <input id="account-email" name="email" type="email" autoComplete="username" required maxLength={254} />
+        <input id="account-email" name="email" type="email" autoComplete="email" required maxLength={254} />
         <label htmlFor="account-password">Password</label>
         <input id="account-password" name="password" type="password" autoComplete={register ? "new-password" : "current-password"} required minLength={register ? 12 : 1} maxLength={256} />
         {register && <p className="form-hint">Use at least 12 characters. Never reuse a test-site password here.</p>}

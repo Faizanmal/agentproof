@@ -22,6 +22,7 @@ def test_nested_json_redacts_secret_keys_pii_and_query_values() -> None:
                 "https://site.example/reset/private-token?email=qa.user@example.test&token=abc",
                 "phone: +1 415 555 0100",
             ],
+            "created_at": "2026-11-08T18:00:03.090471+00:00",
         },
         counts,
     )
@@ -36,6 +37,7 @@ def test_nested_json_redacts_secret_keys_pii_and_query_values() -> None:
     ):
         assert raw not in rendered
     assert result["request"]["Authorization"] == "[REDACTED]"
+    assert result["created_at"] == "2026-11-08T18:00:03.090471+00:00"
     assert counts["sensitive_fields"] == 2
 
 

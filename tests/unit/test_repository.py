@@ -13,9 +13,26 @@ def test_ci_yaml_has_safe_permissions_and_checks() -> None:
     workflow: dict[str, Any] = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text())
     assert workflow["permissions"] == {"contents": "read"}
     assert "pull_request_target" not in workflow
-    commands = "\n".join(step.get("run", "") for step in workflow["jobs"]["checks"]["steps"])
-    for task in ("lint", "test", "typecheck", "build", "security"):
+    jobs = workflow["jobs"]
+    assert {
+        "lint",
+        "typecheck",
+        "unit",
+        "integration-postgres-redis",
+        "frontend-e2e",
+        "build-images",
+        "security-audit",
+    } <= set(jobs)
+    commands = "\n".join(
+        step.get("run", "")
+        for job in jobs.values()
+        for step in job.get("steps", [])
+        if isinstance(step, dict)
+    )
+    for task in ("lint", "typecheck", "integration", "security-audit"):
         assert f"manage.py {task}" in commands
+    assert "pytest tests/unit" in commands
+    assert "docker build" in commands
 
 
 def test_compose_exposes_dependencies_only_on_loopback() -> None:
@@ -28,15 +45,30 @@ def test_compose_exposes_dependencies_only_on_loopback() -> None:
 
 
 def test_application_compose_has_no_runtime_socket_or_privileged_mode() -> None:
-    compose = yaml.safe_load((ROOT / "infra/compose.dev.yml").read_text())
-    for service in compose["services"].values():
-        assert not service.get("privileged", False)
-        assert service.get("network_mode") != "host"
-        for volume in service.get("volumes", []):
-            assert "sock" not in str(volume).lower()
-            assert not str(volume).startswith(("/", ".", "~"))
-    assert "runner" not in compose["services"]
-    assert yaml.safe_load((ROOT / "infra/compose.prod.yml").read_text())["services"] == {}
+    for path in ("infra/compose.dev.yml", "infra/compose.prod.yml"):
+        compose = yaml.safe_load((ROOT / path).read_text())
+        for service in compose["services"].values():
+            assert not service.get("privileged", False)
+            assert service.get("network_mode") != "host"
+            for volume in service.get("volumes", []):
+                assert "sock" not in str(volume).lower()
+                if path.endswith("compose.dev.yml"):
+                    assert not str(volume).startswith(("/", ".", "~"))
+        assert "runner" not in compose["services"]
+    prod = yaml.safe_load((ROOT / "infra/compose.prod.yml").read_text())
+    caddy = prod["services"]["caddy"]
+    assert caddy["depends_on"] == {
+        "api": {"condition": "service_healthy"},
+        "web": {"condition": "service_healthy"},
+    }
+    assert caddy["healthcheck"]["test"] == [
+        "CMD",
+        "wget",
+        "-q",
+        "-O",
+        "/dev/null",
+        "http://127.0.0.1:2019/config/",
+    ]
 
 
 @pytest.mark.parametrize("component", ["worker", "runner"])

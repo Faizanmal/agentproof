@@ -81,9 +81,9 @@ def seed() -> None:
     with log.open("ab") as output:
         options: dict[str, Any] = {"cwd": ROOT, "env": env, "stdout": output, "stderr": output}
         if os.name == "nt":
-            options["creationflags"] = (
-                subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
-            )
+            options["creationflags"] = int(
+                getattr(subprocess, "DETACHED_PROCESS", 0x00000008)
+            ) | int(getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200))
         else:
             options["start_new_session"] = True
         process = subprocess.Popen(command, **options)

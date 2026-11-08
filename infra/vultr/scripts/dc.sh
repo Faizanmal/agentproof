@@ -3,18 +3,12 @@
 #   docker compose --env-file /etc/agentproof/release.env -f infra/compose.prod.yml ...
 #
 # Install once on app VM:
-#   sudo ln -sf /opt/agentproof/infra/vultr/scripts/dc.sh /usr/local/bin/dc
-# Then:
-#   dc ps
-#   dc logs -f worker
-#   dc --profile execution up -d
+#   sudo bash /opt/agentproof/infra/vultr/scripts/install_dc.sh
+# Then: dc ps | dc logs -f worker | dc --profile execution up -d
 set -euo pipefail
 
-# Resolve through /usr/local/bin/dc → …/scripts/dc.sh so ROOT is the repo, not /.
-SCRIPT_PATH="${BASH_SOURCE[0]:-$0}"
-if command -v readlink >/dev/null 2>&1; then
-  SCRIPT_PATH="$(readlink -f "$SCRIPT_PATH" 2>/dev/null || readlink -n "$SCRIPT_PATH" || echo "$SCRIPT_PATH")"
-fi
+# When invoked via `bash /path/to/dc.sh` or a wrapper, BASH_SOURCE is this file.
+SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
 ROOT="$(cd "$(dirname "$SCRIPT_PATH")/../../.." && pwd)"
 RELEASE_ENV="${RELEASE_ENV:-/etc/agentproof/release.env}"
 COMPOSE_FILE="${COMPOSE_FILE:-$ROOT/infra/compose.prod.yml}"

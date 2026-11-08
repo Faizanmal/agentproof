@@ -761,8 +761,8 @@ async def _run_report(repository: Repository, run_id: UUID) -> dict[str, Any]:
     report = {
         "schema_version": "agentproof.run-report/1.0",
         "run": {
-            "id": str(run_id),
-            "created_at": run["created_at"].isoformat(),
+            "id": run_id,
+            "created_at": run["created_at"],
             "status": run["status"],
             "verdict": run["verdict"],
             "goal": plan["goal"],
@@ -773,7 +773,7 @@ async def _run_report(repository: Repository, run_id: UUID) -> dict[str, Any]:
         "evidence_is_execution_only": True,
         "steps": [
             {
-                "id": str(step["id"]),
+                "id": step["id"],
                 "ordinal": step["ordinal"],
                 "action": step["typed_action_json"],
                 "expected": step["expected_json"],
@@ -782,21 +782,21 @@ async def _run_report(repository: Repository, run_id: UUID) -> dict[str, Any]:
                     str(step["typed_action_json"].get("id", "")), {}
                 ),
                 "status": step["status"],
-                "started_at": step["started_at"].isoformat() if step["started_at"] else None,
-                "ended_at": step["ended_at"].isoformat() if step["ended_at"] else None,
+                "started_at": step["started_at"],
+                "ended_at": step["ended_at"],
             }
             for step in steps
         ],
         "findings": [dict(finding) for finding in findings],
         "artifacts": [
             {
-                "id": str(item["id"]),
+                "id": item["id"],
                 "kind": item["kind"],
                 "mime_type": item["mime_type"],
                 "bytes": item["bytes"],
                 "sha256": item["sha256"],
                 "redaction_state": item["redaction_state"],
-                "expires_at": item["expires_at"].isoformat(),
+                "expires_at": item["expires_at"],
                 "download_url": f"/api/v1/artifacts/{item['id']}/download",
             }
             for item in artifacts
@@ -1161,6 +1161,7 @@ async def events(
         "redis.call('ZADD',KEYS[1],now+tonumber(ARGV[3]),ARGV[4]); "
         "redis.call('EXPIRE',KEYS[1],math.ceil(tonumber(ARGV[3]))); return 1",
         1,
+        stream_key,
         str(time.time()),
         str(config.event_stream_concurrency_limit),
         str(config.event_stream_seconds + 10),

@@ -40,7 +40,7 @@ def main() -> int:
             "--locked",
             "--all-packages",
             "--no-dev",
-            "--no-emit-project",
+            "--no-emit-workspace",
             "--format",
             "requirements-txt",
             "--output-file",

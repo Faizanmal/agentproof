@@ -1,5 +1,6 @@
 # Build this image in the isolated sandbox image pipeline, inspect it, then configure the
 # broker with the resulting immutable registry@sha256 digest. Never deploy by mutable tag.
+# Production: docker build --target runtime (default last stage). Prefer DOCKER_BUILDKIT=1.
 FROM ghcr.io/astral-sh/uv:0.8.3 AS uv
 FROM python:3.13.1-slim-bookworm AS build
 COPY --from=uv /uv /usr/local/bin/uv
@@ -19,14 +20,6 @@ RUN uv sync --frozen --no-dev --package agentproof-runner --no-editable \
     && test ! -e /app/.venv/lib/python3.13/site-packages/_editable_impl_agentproof_runner.pth \
     && /app/.venv/bin/python -c "import agentproof_runner, pathlib; p=pathlib.Path(agentproof_runner.__file__); assert p.is_file() and 'site-packages' in p.as_posix(), p"
 
-# Opt-in CI/manual real-browser gate. Not part of production (`docker build --target runtime`).
-# Legacy builders without BuildKit still evaluate this stage unless --target is set.
-FROM build AS browser-test
-RUN uv sync --frozen --package agentproof-runner --group dev --project .
-COPY tests/e2e /tests/e2e
-ENV PYTHONPATH=/app/apps/runner/src AGENTPROOF_RUNNER_BROWSER=1
-CMD ["uv", "run", "--frozen", "--package", "agentproof-runner", "pytest", "/tests/e2e", "-q"]
-
 FROM python:3.13.1-slim-bookworm AS runtime
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright HOME=/tmp PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /app
@@ -40,3 +33,12 @@ RUN /app/.venv/bin/python -m playwright install-deps chromium \
 ENV PATH="/app/.venv/bin:$PATH"
 USER 10001:10001
 ENTRYPOINT ["agentproof-runner"]
+
+# Opt-in CI/manual real-browser gate. Placed AFTER runtime so legacy builders with
+# --target runtime (or default last-needed chain) do not execute this stage.
+# Dev group lives on the workspace root pyproject, not apps/runner.
+FROM build AS browser-test
+RUN uv sync --frozen --group dev
+COPY tests/e2e /tests/e2e
+ENV PYTHONPATH=/app/apps/runner/src AGENTPROOF_RUNNER_BROWSER=1
+CMD ["uv", "run", "--frozen", "--package", "agentproof-runner", "pytest", "/tests/e2e", "-q"]

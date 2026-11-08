@@ -18,11 +18,10 @@ CMD="${1:-}"
 shift || true
 
 # Install short `dc` once so operators never type --env-file / -f.
-ln -sfn "$ROOT/infra/vultr/scripts/dc.sh" /usr/local/bin/dc 2>/dev/null || true
-chmod +x "$ROOT/infra/vultr/scripts/dc.sh" 2>/dev/null || true
+bash "$ROOT/infra/vultr/scripts/install_dc.sh" >/dev/null 2>&1 || true
 
 dc() {
-  docker compose --env-file "$RELEASE_ENV" -f "$COMPOSE_FILE" --profile execution "$@"
+  bash "$ROOT/infra/vultr/scripts/dc.sh" --profile execution "$@"
 }
 
 usage() {

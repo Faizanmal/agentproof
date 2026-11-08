@@ -35,7 +35,7 @@ fi
 echo "commit=$(git rev-parse --short HEAD)"
 
 echo "==> build runner (runtime target only; skip browser-test stage)"
-docker build --target runtime -f apps/runner/Dockerfile -t agentproof-runner:local "$ROOT"
+DOCKER_BUILDKIT=1 docker build --target runtime -f apps/runner/Dockerfile -t agentproof-runner:local "$ROOT"
 IMAGE_ID="$(docker image inspect agentproof-runner:local --format '{{.Id}}')"
 echo "runner=$IMAGE_ID"
 

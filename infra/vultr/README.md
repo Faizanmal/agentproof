@@ -28,7 +28,7 @@ so raw Docker needs `--env-file` and `-f`. Install the short wrapper once on the
 **app VM**:
 
 ```sh
-sudo ln -sf /opt/agentproof/infra/vultr/scripts/dc.sh /usr/local/bin/dc
+sudo bash /opt/agentproof/infra/vultr/scripts/install_dc.sh
 # (also done automatically by deploy_app.sh / ap.sh)
 ```
 

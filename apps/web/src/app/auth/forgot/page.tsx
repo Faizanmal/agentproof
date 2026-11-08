@@ -63,7 +63,7 @@ export default function ForgotPasswordPage() {
             id="reset-email"
             name="email"
             type="email"
-            autoComplete="username"
+            autoComplete="email"
             required
             maxLength={254}
           />

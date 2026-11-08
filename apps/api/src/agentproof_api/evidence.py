@@ -8,7 +8,8 @@ import json
 import os
 import re
 import tempfile
-from datetime import timedelta
+from datetime import date, datetime, timedelta
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 from uuid import UUID, uuid4
@@ -39,7 +40,7 @@ TRACE_ACTIONS = {
     "screenshot",
 }
 _EMAIL = re.compile(r"(?i)\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b")
-_PHONE = re.compile(r"(?<!\w)(?:\+?\d[\d ().-]{7,}\d)(?!\w)")
+_PHONE = re.compile(r"(?<!\w)(?!\d{4}-\d{2}-\d{2})(?:\+?\d[\d ()-]{7,}\d)(?!\w)")
 _ASSIGNMENT = re.compile(
     r"(?i)(password|passwd|token|secret|api[_-]?key|authorization|cookie|session)"
     r"\s*[:=]\s*([^\s,;<>]+)"
@@ -112,7 +113,9 @@ def redact_tree(value: Any, counts: dict[str, int] | None = None) -> Any:
         for key, count in local.items():
             counts[key] = counts.get(key, 0) + count
         return sanitized
-    if value is None or type(value) in {bool, int, float}:
+    if value is None or type(value) in {bool, int, float, Decimal}:
+        return value
+    if isinstance(value, (datetime, date, UUID)):
         return value
     return str(value)[:2000]
 

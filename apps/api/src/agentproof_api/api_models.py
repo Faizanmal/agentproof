@@ -404,12 +404,10 @@ class DevelopmentMail(Model):
     expires_at: datetime
 
     @computed_field
-    @property
     def verification_url(self) -> str | None:
         return self.url if self.purpose == "verification" else None
 
     @computed_field
-    @property
     def password_reset_url(self) -> str | None:
         return self.url if self.purpose == "password_reset" else None
 
