@@ -34,8 +34,8 @@ if [[ "$DO_PULL" -eq 1 ]]; then
 fi
 echo "commit=$(git rev-parse --short HEAD)"
 
-echo "==> build runner"
-docker build -f apps/runner/Dockerfile -t agentproof-runner:local "$ROOT"
+echo "==> build runner (runtime target only; skip browser-test stage)"
+docker build --target runtime -f apps/runner/Dockerfile -t agentproof-runner:local "$ROOT"
 IMAGE_ID="$(docker image inspect agentproof-runner:local --format '{{.Id}}')"
 echo "runner=$IMAGE_ID"
 

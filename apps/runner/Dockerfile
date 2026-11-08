@@ -19,9 +19,10 @@ RUN uv sync --frozen --no-dev --package agentproof-runner --no-editable \
     && test ! -e /app/.venv/lib/python3.13/site-packages/_editable_impl_agentproof_runner.pth \
     && /app/.venv/bin/python -c "import agentproof_runner, pathlib; p=pathlib.Path(agentproof_runner.__file__); assert p.is_file() and 'site-packages' in p.as_posix(), p"
 
-# Opt-in CI/manual real-browser gate. This stage is not used for the production runner image.
+# Opt-in CI/manual real-browser gate. Not part of production (`docker build --target runtime`).
+# Legacy builders without BuildKit still evaluate this stage unless --target is set.
 FROM build AS browser-test
-RUN uv sync --frozen --package agentproof-runner --group dev
+RUN uv sync --frozen --package agentproof-runner --group dev --project .
 COPY tests/e2e /tests/e2e
 ENV PYTHONPATH=/app/apps/runner/src AGENTPROOF_RUNNER_BROWSER=1
 CMD ["uv", "run", "--frozen", "--package", "agentproof-runner", "pytest", "/tests/e2e", "-q"]
