@@ -25,7 +25,9 @@ from agentproof_api.api_models import (
     PasswordResetRequested,
     TokenInput,
     UserView,
+    VerificationMailSent,
 )
+from agentproof_api.mail import try_send_outbox_now
 from agentproof_api.security import (
     DUMMY_HASH,
     check_password,
@@ -233,6 +235,52 @@ async def create_session(
     )
 
 
+def mail_ready(config: Settings) -> bool:
+    if config.mail_backend == "disabled":
+        return False
+    if config.app_env == "production" and (
+        config.mail_backend != "smtp" or not config.smtp_host or not config.mail_from
+    ):
+        return False
+    return True
+
+
+async def issue_verification_mail(
+    session: AsyncSession, config: Settings, user_id: UUID
+) -> tuple[str, UUID]:
+    verification_token, verification_id, outbox_id = token(), uuid4(), uuid4()
+    link = config.public_app_url.rstrip("/") + "/auth/verify#token=" + verification_token
+    ciphertext = encrypt(config, link, f"verification:{user_id}")
+    expires = now() + timedelta(hours=1)
+    await session.execute(
+        update(db.email_verifications)
+        .where(
+            db.email_verifications.c.user_id == user_id,
+            db.email_verifications.c.used_at.is_(None),
+        )
+        .values(used_at=now())
+    )
+    await session.execute(
+        insert(db.email_verifications).values(
+            id=verification_id,
+            user_id=user_id,
+            token_hash=digest(verification_token),
+            expires_at=expires,
+        )
+    )
+    await session.execute(
+        insert(db.mail_outbox).values(
+            id=outbox_id,
+            user_id=user_id,
+            purpose="verification",
+            ciphertext=ciphertext,
+            key_version=config.encryption_key_version,
+            expires_at=expires,
+        )
+    )
+    return link, outbox_id
+
+
 @router.post("/auth/register", response_model=Identity, status_code=201)
 async def register(
     body: Credentials, request: Request, response: Response, session: DB
@@ -245,9 +293,8 @@ async def register(
         raise HTTPException(503, "MAIL_NOT_CONFIGURED")
     await rate_limit(request, "register", body.email, 5, 3600)
     # Preflight encryption before writing anything. Verification links stay encrypted at rest.
-    verification_token, verification_id, user_id = token(), uuid4(), uuid4()
-    link = config.public_app_url.rstrip("/") + "/auth/verify#token=" + verification_token
-    ciphertext = encrypt(config, link, f"verification:{user_id}")
+    user_id = uuid4()
+    encrypt(config, "preflight", f"verification:{user_id}")
     from sqlalchemy.dialects.postgresql import insert as pg_insert
 
     hashed = await run_in_threadpool(passwords.hash, body.password.get_secret_value())
@@ -260,35 +307,18 @@ async def register(
     user = result.mappings().first()
     if user is None:
         raise HTTPException(409, "REGISTRATION_UNAVAILABLE")
-    expires = now() + timedelta(hours=1)
-    await session.execute(
-        insert(db.email_verifications).values(
-            id=verification_id,
-            user_id=user_id,
-            token_hash=digest(verification_token),
-            expires_at=expires,
-        )
+    link, outbox_id = await issue_verification_mail(session, config, user_id)
+    identity = await create_session(session, request, response, dict(user))
+    await session.commit()
+    await try_send_outbox_now(
+        session,
+        config,
+        outbox_id=outbox_id,
+        recipient=body.email,
+        purpose="verification",
+        link=link,
     )
-    await session.execute(
-        insert(db.mail_outbox).values(
-            user_id=user_id,
-            purpose="verification",
-            ciphertext=ciphertext,
-            key_version=config.encryption_key_version,
-            expires_at=expires,
-        )
-    )
-    return await create_session(session, request, response, dict(user))
-
-
-def mail_ready(config: Settings) -> bool:
-    if config.mail_backend == "disabled":
-        return False
-    if config.app_env == "production" and (
-        config.mail_backend != "smtp" or not config.smtp_host or not config.mail_from
-    ):
-        return False
-    return True
+    return identity
 
 
 @router.post("/auth/forgot-password", response_model=PasswordResetRequested)
@@ -314,7 +344,7 @@ async def forgot_password(
     )
     if row is None:
         return PasswordResetRequested(message=notice)
-    reset_token, reset_id = token(), uuid4()
+    reset_token, reset_id, outbox_id = token(), uuid4(), uuid4()
     link = config.public_app_url.rstrip("/") + "/auth/reset#token=" + reset_token
     ciphertext = encrypt(config, link, f"password_reset:{row['id']}")
     expires = now() + timedelta(hours=1)
@@ -336,12 +366,23 @@ async def forgot_password(
     )
     await session.execute(
         insert(db.mail_outbox).values(
+            id=outbox_id,
             user_id=row["id"],
             purpose="password_reset",
             ciphertext=ciphertext,
             key_version=config.encryption_key_version,
             expires_at=expires,
         )
+    )
+    # Persist the one-use token before SMTP so a crash after send cannot orphan delivery.
+    await session.commit()
+    await try_send_outbox_now(
+        session,
+        config,
+        outbox_id=outbox_id,
+        recipient=row["email"],
+        purpose="password_reset",
+        link=link,
     )
     return PasswordResetRequested(
         message=notice,
@@ -386,15 +427,44 @@ async def reset_password(body: PasswordResetInput, request: Request, session: DB
         .where(db.password_resets.c.id == row["id"])
         .values(used_at=now())
     )
-    await session.execute(
-        update(db.users).where(db.users.c.id == user["id"]).values(password_hash=hashed)
-    )
+    # Completing a reset proves inbox control for this address.
+    values: dict[str, Any] = {"password_hash": hashed}
+    if user["email_verified_at"] is None:
+        values["email_verified_at"] = now()
+    await session.execute(update(db.users).where(db.users.c.id == user["id"]).values(**values))
     await session.execute(
         update(db.sessions)
         .where(db.sessions.c.user_id == user["id"], db.sessions.c.revoked_at.is_(None))
         .values(revoked_at=now())
     )
     return Message(message="Password updated")
+
+
+@router.post("/auth/resend-verification", response_model=VerificationMailSent)
+async def resend_verification(
+    request: Request, session: DB, user: User
+) -> VerificationMailSent:
+    config = settings(request)
+    if not mail_ready(config):
+        raise HTTPException(503, "MAIL_NOT_CONFIGURED")
+    signing_key(config)
+    await rate_limit(request, "resend-verification", str(user.id), 5, 3600)
+    if user.user.email_verified_at is not None:
+        return VerificationMailSent(message="Email is already verified.")
+    link, outbox_id = await issue_verification_mail(session, config, user.id)
+    await session.commit()
+    await try_send_outbox_now(
+        session,
+        config,
+        outbox_id=outbox_id,
+        recipient=user.user.email,
+        purpose="verification",
+        link=link,
+    )
+    return VerificationMailSent(
+        message="Verification instructions were sent.",
+        development_verification_url=link if config.mail_backend == "development" else None,
+    )
 
 
 @router.post("/auth/login", response_model=Identity)

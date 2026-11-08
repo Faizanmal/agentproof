@@ -4,9 +4,10 @@ import asyncio
 import smtplib
 import ssl
 from email.message import EmailMessage
+from uuid import UUID
 
 from sqlalchemy import select, update
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from agentproof_api import db
 from agentproof_api.security import decrypt, now
@@ -36,6 +37,30 @@ def send_mail(config: Settings, recipient: str, purpose: str, link: str) -> None
         if config.smtp_user:
             client.login(config.smtp_user, config.smtp_password.get_secret_value())
         client.send_message(message)
+
+
+async def try_send_outbox_now(
+    session: AsyncSession,
+    config: Settings,
+    *,
+    outbox_id: UUID,
+    recipient: str,
+    purpose: str,
+    link: str,
+) -> bool:
+    """Best-effort immediate SMTP send. Failures leave the outbox row for retry."""
+    if config.mail_backend != "smtp" or not config.smtp_host or not config.mail_from:
+        return False
+    try:
+        await asyncio.to_thread(send_mail, config, recipient, purpose, link)
+    except Exception:
+        return False
+    await session.execute(
+        update(db.mail_outbox)
+        .where(db.mail_outbox.c.id == outbox_id, db.mail_outbox.c.delivered_at.is_(None))
+        .values(delivered_at=now())
+    )
+    return True
 
 
 async def deliver_outbox(config: Settings) -> int:

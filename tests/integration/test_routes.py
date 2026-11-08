@@ -144,6 +144,23 @@ async def test_forgot_and_reset_password_revokes_sessions(
         json={"email": "resetter@example.com", "password": new_password},
     )
     assert accepted.status_code == 200, accepted.text
+    client.headers["X-CSRF-Token"] = accepted.json()["csrf_token"]
+    assert accepted.json()["user"]["email_verified_at"] is not None
+
+
+async def test_resend_verification_issues_fresh_link(environment: dict[str, Any]) -> None:
+    client = environment["client"]
+    await register(client, "unverified@example.com", verify=False)
+    assert (await client.get("/api/v1/auth/me")).json()["user"]["email_verified_at"] is None
+    resent = await client.post("/api/v1/auth/resend-verification", json={})
+    assert resent.status_code == 200, resent.text
+    url = resent.json()["development_verification_url"]
+    assert url and "/auth/verify#token=" in url
+    token = urlsplit(url).fragment.removeprefix("token=")
+    assert (
+        await client.post("/api/v1/auth/verify-email", json={"token": token})
+    ).status_code == 200
+    assert (await client.get("/api/v1/auth/me")).json()["user"]["email_verified_at"] is not None
 
 
 async def test_register_login_refresh_replay_logout(environment: dict[str, Any]) -> None:

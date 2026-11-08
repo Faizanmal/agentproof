@@ -393,6 +393,11 @@ class PasswordResetRequested(Model):
     development_reset_url: str | None = None
 
 
+class VerificationMailSent(Model):
+    message: str
+    development_verification_url: str | None = None
+
+
 class DevelopmentMail(Model):
     purpose: Literal["verification", "password_reset"]
     url: str

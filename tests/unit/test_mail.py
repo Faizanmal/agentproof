@@ -1,9 +1,11 @@
 from typing import Any
+from uuid import uuid4
 
 import pytest
-from agentproof_api.mail import send_mail
+from agentproof_api.mail import send_mail, try_send_outbox_now
 from agentproof_api.settings import Settings
 from pydantic import SecretStr
+from unittest.mock import AsyncMock, MagicMock
 
 
 def test_smtp_requires_starttls_and_never_enables_debug(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -90,3 +92,48 @@ def test_smtp_password_reset_subject(monkeypatch: pytest.MonkeyPatch) -> None:
         "https://owned.example/auth/reset#token=fixture",
     )
     assert subjects == ["Reset your AgentProof password"]
+
+
+@pytest.mark.asyncio
+async def test_try_send_outbox_now_marks_delivered(monkeypatch: pytest.MonkeyPatch) -> None:
+    sent: list[tuple[str, str]] = []
+
+    def fake_send(config: Settings, recipient: str, purpose: str, link: str) -> None:
+        sent.append((recipient, purpose))
+
+    monkeypatch.setattr("agentproof_api.mail.send_mail", fake_send)
+    session = MagicMock()
+    session.execute = AsyncMock()
+    config = Settings(
+        _env_file=None,
+        mail_backend="smtp",
+        smtp_host="smtp.invalid",
+        mail_from="sender@example.com",
+    )
+    outbox_id = uuid4()
+    assert await try_send_outbox_now(
+        session,
+        config,
+        outbox_id=outbox_id,
+        recipient="user@example.com",
+        purpose="password_reset",
+        link="https://owned.example/auth/reset#token=fixture",
+    )
+    assert sent == [("user@example.com", "password_reset")]
+    session.execute.assert_awaited()
+
+
+@pytest.mark.asyncio
+async def test_try_send_outbox_now_skips_development_backend() -> None:
+    session = MagicMock()
+    session.execute = AsyncMock()
+    config = Settings(_env_file=None, mail_backend="development")
+    assert not await try_send_outbox_now(
+        session,
+        config,
+        outbox_id=uuid4(),
+        recipient="user@example.com",
+        purpose="password_reset",
+        link="https://owned.example/auth/reset#token=fixture",
+    )
+    session.execute.assert_not_awaited()

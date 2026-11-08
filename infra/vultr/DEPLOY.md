@@ -117,11 +117,15 @@ and docs/adr/0005-isolated-sandbox-execution.md.
 
 ## Deploy and migration
 
-Run from repository root on app-vm after configuring all real values:
+Run from repository root on app-vm after configuring all real values.
+Install the short compose wrapper once (hides `--env-file` / `-f`):
+
+```sh
+sudo ln -sf /opt/agentproof/infra/vultr/scripts/dc.sh /usr/local/bin/dc
+```
 
 ```sh
 set -eu
-dc() { docker compose --env-file /etc/agentproof/release.env -f infra/compose.prod.yml "$@"; }
 dc --profile maintenance --profile execution config --quiet
 dc --profile maintenance --profile execution pull
 dc up -d postgres redis
@@ -139,6 +143,34 @@ substitute for a successful migration or external checks. Size VM from measured
 memory/disk rather than raising caps blindly. Authenticated backend broker
 artifact import supports large evidence transfers privately; there is no public
 upload/download directory. Public API body limit is 2 MB and SSE flush is immediate.
+
+### Routine code updates (git-deployed VMs)
+
+After pushing to the deploy remote, refresh each VM with one script instead of
+hand-running long `docker build` / compose sequences:
+
+```sh
+# app-vm
+sudo bash /opt/agentproof/infra/vultr/scripts/deploy_app.sh
+
+# sandbox-vm (when runner/broker changed)
+sudo bash /opt/agentproof/infra/vultr/scripts/deploy_sandbox.sh
+```
+
+Use `--no-pull` if you already pulled. Scripts rebuild local images, refresh
+digest pins in `/etc/agentproof/release.env` / `broker.env`, migrate, and restart.
+
+For logs and common ops, use `infra/vultr/scripts/ap.sh` instead of long
+`docker compose --env-file ... logs` / `journalctl` lines:
+
+```sh
+AP=/opt/agentproof/infra/vultr/scripts/ap.sh
+sudo bash $AP logs            # follow
+sudo bash $AP tail worker 100
+sudo bash $AP mail
+sudo bash $AP broker -f       # sandbox VM
+sudo bash $AP health
+```
 
 ## Backups, rollback and operations
 
