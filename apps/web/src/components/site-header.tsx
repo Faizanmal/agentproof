@@ -13,12 +13,17 @@ export function SiteHeader() {
         <span className="brand-icon">
           <ShieldCheck size={23} aria-hidden="true" />
         </span>
-        AgentProof<span className="stage" aria-hidden="true">QA WORKSPACE</span>
+        AgentProof
+        <span className="stage" aria-hidden="true">
+          QA WORKSPACE
+        </span>
       </Link>
       <nav aria-label="Main navigation">
         <Link href="/app/projects">Workspace</Link>
         <Link href="/login">Sign in</Link>
-        <Link className="header-create" href="/register">Create account</Link>
+        <Link className="header-create" href="/register">
+          Create account
+        </Link>
         <ThemeToggle />
       </nav>
     </header>

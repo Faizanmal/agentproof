@@ -18,9 +18,12 @@ export default function ForgotPasswordPage() {
     setResetUrl(null);
     setMessage("Sending reset instructions…");
     try {
-      const result = await createApiClient().POST("/api/v1/auth/forgot-password", {
-        body: { email },
-      });
+      const result = await createApiClient().POST(
+        "/api/v1/auth/forgot-password",
+        {
+          body: { email },
+        },
+      );
       if (result.data) {
         setMessage(result.data.message);
         if (result.data.development_reset_url) {
@@ -37,7 +40,9 @@ export default function ForgotPasswordPage() {
         );
       }
     } catch {
-      setMessage("The API is unavailable. Your form was not submitted; retry when connection is restored.");
+      setMessage(
+        "The API is unavailable. Your form was not submitted; retry when connection is restored.",
+      );
     } finally {
       setBusy(false);
     }
@@ -52,7 +57,10 @@ export default function ForgotPasswordPage() {
           </span>
           <p className="eyebrow">ACCOUNT RECOVERY</p>
           <h1>Reset your password</h1>
-          <p>We email a one-hour, one-use link. The token stays in the page fragment until you submit it.</p>
+          <p>
+            We email a one-hour, one-use link. The token stays in the page
+            fragment until you submit it.
+          </p>
         </div>
         <p role="status" aria-live="polite" className="auth-status">
           {message}

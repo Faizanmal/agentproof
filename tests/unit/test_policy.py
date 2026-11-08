@@ -5,7 +5,14 @@ from uuid import uuid4
 
 import pytest
 from agentproof_api import policy, runtime_policy
-from agentproof_api.policy import Action, SideEffects, TargetPolicy, check_action
+from agentproof_api.policy import (
+    Action,
+    SideEffects,
+    TargetPolicy,
+    check_action,
+    path_glob_allowed,
+    path_glob_match,
+)
 from agentproof_api.security import now
 from agentproof_api.settings import Settings
 from fastapi import HTTPException
@@ -48,6 +55,23 @@ def test_deterministic_denies(url: str, method: str, kind: Any, kwargs: dict[str
     p = TargetPolicy(authorized_origins=[ORIGIN], blocked_paths=["/private/*"])
     with pytest.raises(HTTPException):
         check_action(p, Action(url=url, method=method, action=kind, **kwargs), config())
+
+
+def test_trailing_slash_policy_paths_match_normalized_candidates() -> None:
+    # Regression: posixpath.normpath("/qa-fixture/") -> "/qa-fixture", which must
+    # still match a saved exact rule of "/qa-fixture/" (and the reverse).
+    assert path_glob_match("/qa-fixture/", "/qa-fixture/")
+    assert path_glob_match("/qa-fixture", "/qa-fixture/")
+    assert path_glob_match("/qa-fixture/", "/qa-fixture")
+    assert path_glob_allowed("/qa-fixture/", ["/qa-fixture/"])
+    assert not path_glob_match("/other/", "/qa-fixture/")
+    assert path_glob_match("/qa-fixture/index.html", "/qa-fixture/*")
+
+    p = TargetPolicy(authorized_origins=[ORIGIN], allowed_paths=["/qa-fixture/"])
+    assert check_action(p, Action(url=ORIGIN + "/qa-fixture/", action="read"), config())
+    assert check_action(p, Action(url=ORIGIN + "/qa-fixture", action="read"), config())
+    with pytest.raises(HTTPException, match="PATH_DENIED"):
+        check_action(p, Action(url=ORIGIN + "/other", action="read"), config())
 
 
 def test_only_approved_fixture_form_and_synthetic_type() -> None:

@@ -124,6 +124,20 @@ DANGEROUS = frozenset(
 )
 
 
+def path_glob_match(path: str, pattern: str) -> bool:
+    """Match a path against a policy glob after normalizing both sides.
+
+    ``posixpath.normpath`` strips a trailing slash (except ``/``). Saved rules
+    like ``/qa-fixture/`` must still match candidates that normalize to
+    ``/qa-fixture``.
+    """
+    return fnmatchcase(posixpath.normpath(path), posixpath.normpath(pattern))
+
+
+def path_glob_allowed(path: str, patterns: list[str]) -> bool:
+    return any(path_glob_match(path, pattern) for pattern in patterns)
+
+
 def check_action(policy: TargetPolicy, action: Action, config: Settings) -> tuple[str, list[str]]:
     normalized, path = canonical_url(action.url, allow_ip=True)
     if normalized not in policy.authorized_origins:
@@ -144,8 +158,8 @@ def check_action(policy: TargetPolicy, action: Action, config: Settings) -> tupl
     if any(part in {".", ".."} for part in decoded.split("/")):
         raise HTTPException(403, "PATH_TRAVERSAL_DENIED")
     path = posixpath.normpath(decoded)
-    if any(fnmatchcase(path, p) for p in policy.blocked_paths) or not any(
-        fnmatchcase(path, p) for p in policy.allowed_paths
+    if path_glob_allowed(path, policy.blocked_paths) or not path_glob_allowed(
+        path, policy.allowed_paths
     ):
         raise HTTPException(403, "PATH_DENIED")
     words = set(path.casefold().replace("-", "/").replace("_", "/").split("/"))
@@ -166,7 +180,7 @@ def check_action(policy: TargetPolicy, action: Action, config: Settings) -> tupl
     fixture = (
         demo
         and policy.side_effect_rules.fixture_forms
-        and any(fnmatchcase(path, p) for p in policy.side_effect_rules.fixture_paths)
+        and path_glob_allowed(path, policy.side_effect_rules.fixture_paths)
     )
     if action.method == "POST" or action.action in {"type", "submit"}:
         if not fixture or (action.action == "type" and not action.synthetic):

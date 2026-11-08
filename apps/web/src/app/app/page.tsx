@@ -17,7 +17,8 @@ export default function OverviewPage() {
   const [runs, setRuns] = useState<Run[]>([]);
   const [loadedFor, setLoadedFor] = useState<string | null>(null);
   const [error, setError] = useState("");
-  const loading = Boolean(selectedWorkspaceId) && loadedFor !== selectedWorkspaceId;
+  const loading =
+    Boolean(selectedWorkspaceId) && loadedFor !== selectedWorkspaceId;
 
   useEffect(() => {
     if (!selectedWorkspaceId) return;
@@ -51,14 +52,20 @@ export default function OverviewPage() {
         setRuns(
           runPages
             .flatMap((page) => page.data?.data ?? [])
-            .sort((left, right) => right.created_at.localeCompare(left.created_at))
+            .sort((left, right) =>
+              right.created_at.localeCompare(left.created_at),
+            )
             .slice(0, 8),
         );
         setError("");
         setLoadedFor(workspaceId);
       } catch (reason) {
         if (!controller.signal.aborted) {
-          setError(reason instanceof Error ? reason.message : "Could not connect to AgentProof.");
+          setError(
+            reason instanceof Error
+              ? reason.message
+              : "Could not connect to AgentProof.",
+          );
           setLoadedFor(workspaceId);
         }
       }
@@ -72,7 +79,11 @@ export default function OverviewPage() {
         eyebrow="WORKSPACE OVERVIEW"
         title="Good testing starts with clear scope."
         description="Track your verified targets, reviewed plans, and browser runs from one place."
-        action={workspaces.length ? { href: "/app/projects/new", label: "New project" } : undefined}
+        action={
+          workspaces.length
+            ? { href: "/app/projects/new", label: "New project" }
+            : undefined
+        }
       />
       {error && (
         <div className="app-alert error" role="alert">
@@ -103,12 +114,16 @@ export default function OverviewPage() {
             <Panel>
               <p className="metric-label">Recent runs</p>
               <p className="metric-value">{runs.length}</p>
-              <p className="metric-note">Latest 5 runs for up to 8 listed projects</p>
+              <p className="metric-note">
+                Latest 5 runs for up to 8 listed projects
+              </p>
             </Panel>
             <Panel>
               <p className="metric-label">Verification</p>
               <p className="metric-value metric-word">Review targets</p>
-              <p className="metric-note">Open a project to review origin proof</p>
+              <p className="metric-note">
+                Open a project to review origin proof
+              </p>
             </Panel>
           </div>
           <div className="overview-columns">
@@ -125,7 +140,11 @@ export default function OverviewPage() {
               {projects.length ? (
                 <div className="app-list">
                   {projects.slice(0, 5).map((project) => (
-                    <Link className="list-row" key={project.id} href={`/app/projects/${project.id}`}>
+                    <Link
+                      className="list-row"
+                      key={project.id}
+                      href={`/app/projects/${project.id}`}
+                    >
                       <span className="row-icon">
                         <FolderKanban size={17} aria-hidden="true" />
                       </span>
@@ -142,7 +161,10 @@ export default function OverviewPage() {
                 <EmptyState
                   title="No projects yet"
                   text="Add a project for a site you own or are explicitly authorized to test."
-                  action={{ href: "/app/projects/new", label: "Create a project" }}
+                  action={{
+                    href: "/app/projects/new",
+                    label: "Create a project",
+                  }}
                 />
               )}
             </Panel>
@@ -156,13 +178,21 @@ export default function OverviewPage() {
               {runs.length ? (
                 <div className="app-list">
                   {runs.slice(0, 6).map((run) => (
-                    <Link className="list-row" key={run.id} href={`/app/runs/${run.id}`}>
+                    <Link
+                      className="list-row"
+                      key={run.id}
+                      href={`/app/runs/${run.id}`}
+                    >
                       <span className="row-icon">
                         <ShieldCheck size={17} aria-hidden="true" />
                       </span>
                       <span className="row-main">
-                        <strong>{String(run.summary_json.goal ?? "QA run")}</strong>
-                        <small>{new Date(run.created_at).toLocaleString()}</small>
+                        <strong>
+                          {String(run.summary_json.goal ?? "QA run")}
+                        </strong>
+                        <small>
+                          {new Date(run.created_at).toLocaleString()}
+                        </small>
                       </span>
                       <StatusPill value={run.verdict ?? run.status} />
                     </Link>

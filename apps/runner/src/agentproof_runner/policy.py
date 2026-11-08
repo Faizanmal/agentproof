@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ipaddress
+import posixpath
 import socket
 from fnmatch import fnmatchcase
 from typing import Any
@@ -36,7 +37,9 @@ def host_allowed(url: str, origins: list[str]) -> bool:
 
 
 def path_allowed(url: str, patterns: list[str]) -> bool:
-    return any(fnmatchcase(urlsplit(url).path or "/", pat) for pat in patterns)
+    # Normalize both sides so `/qa-fixture/` rules match `/qa-fixture` paths.
+    path = posixpath.normpath(urlsplit(url).path or "/")
+    return any(fnmatchcase(path, posixpath.normpath(pat)) for pat in patterns)
 
 
 def guard_action(page: Any, locator: Any, action: str, manifest: Manifest) -> None:

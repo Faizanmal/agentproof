@@ -120,3 +120,43 @@ def test_heading_only_plan_is_accepted_for_static_fixture() -> None:
     )
     assert result.plan.goal == "Open the owned fixture and confirm the heading"
     assert result.plan.risk_level == "LOW"
+
+
+def test_exact_trailing_slash_policy_allows_fixture_plan() -> None:
+    # Judge blocker: policy saved as "/qa-fixture/" while check_action normalizes
+    # candidates to "/qa-fixture" — must not raise PLAN_PATH_DENIED.
+    policy = TargetPolicy(authorized_origins=[ORIGIN], allowed_paths=["/qa-fixture/"])
+    scope = PlanTestScope(start_path="/qa-fixture/", allowed_paths=["/qa-fixture/"])
+    result = assess(
+        _plan(),
+        "Open the owned fixture and confirm the heading",
+        scope,
+        policy,
+        ORIGIN,
+        _config(),
+    )
+    assert result.plan.risk_level == "LOW"
+
+
+def test_exact_trailing_slash_still_denies_outside_paths() -> None:
+    policy = TargetPolicy(authorized_origins=[ORIGIN], allowed_paths=["/qa-fixture/"])
+    scope = PlanTestScope(start_path="/qa-fixture/", allowed_paths=["/qa-fixture/"])
+    plan = _plan()
+    plan = plan.model_copy(
+        update={
+            "steps": [
+                plan.steps[0].model_copy(update={"url_path": "/secret/"}),
+                plan.steps[1],
+            ]
+        }
+    )
+    with pytest.raises(PlanRejected) as rejected:
+        assess(
+            plan,
+            "Open the owned fixture and confirm the heading",
+            scope,
+            policy,
+            ORIGIN,
+            _config(),
+        )
+    assert rejected.value.code in {"PLAN_PATH_OUTSIDE_TEST_SCOPE", "PLAN_PATH_DENIED"}

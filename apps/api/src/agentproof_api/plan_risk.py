@@ -1,12 +1,11 @@
 """Deterministic checks after every model response, independent of model risk labels."""
 
 from dataclasses import dataclass
-from fnmatch import fnmatchcase
 
 from fastapi import HTTPException
 
 from agentproof_api.plan_schema import QAPlanV1, TestScope
-from agentproof_api.policy import Action, TargetPolicy, check_action
+from agentproof_api.policy import Action, TargetPolicy, check_action, path_glob_allowed
 from agentproof_api.settings import Settings
 from agentproof_api.targets import demo_allowed
 
@@ -69,7 +68,7 @@ def assess(
         if step.action == "assert_url" and step.assertion is not None:
             paths.append(str(step.assertion.expected))
         for candidate in paths:
-            if not any(fnmatchcase(candidate, p) for p in scope.allowed_paths):
+            if not path_glob_allowed(candidate, scope.allowed_paths):
                 raise PlanRejected("PLAN_PATH_OUTSIDE_TEST_SCOPE")
             try:
                 check_action(policy, Action(url=base_origin + candidate, action="read"), config)
@@ -88,7 +87,7 @@ def assess(
             fixture = (
                 demo_allowed(base_origin, config)
                 and policy.side_effect_rules.fixture_forms
-                and any(fnmatchcase(path, p) for p in policy.side_effect_rules.fixture_paths)
+                and path_glob_allowed(path, policy.side_effect_rules.fixture_paths)
             )
             if step.action in {"fill", "select", "check", "uncheck"} and not fixture:
                 raise PlanRejected("FIXTURE_PERMISSION_REQUIRED")

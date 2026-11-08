@@ -37,11 +37,11 @@ After the run, the container is removed.
 
 ## Architecture (short)
 
-| Role | Responsibility |
-| --- | --- |
-| App VM | Caddy, Next.js, FastAPI, Postgres, Redis, worker |
-| Sandbox VM | Private TLS broker + disposable runners |
-| Vultr Serverless Inference | Plan generation only (runner has no model key) |
+| Role                       | Responsibility                                   |
+| -------------------------- | ------------------------------------------------ |
+| App VM                     | Caddy, Next.js, FastAPI, Postgres, Redis, worker |
+| Sandbox VM                 | Private TLS broker + disposable runners          |
+| Vultr Serverless Inference | Plan generation only (runner has no model key)   |
 
 See [ADR 0005](adr/0005-isolated-sandbox-execution.md) and the README Vultr section
 for boundaries. Operator deploy scripts and credentials stay outside the public tree.

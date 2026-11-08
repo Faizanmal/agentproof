@@ -14,7 +14,8 @@ export default function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loadedFor, setLoadedFor] = useState<string | null>(null);
   const [error, setError] = useState("");
-  const loading = Boolean(selectedWorkspaceId) && loadedFor !== selectedWorkspaceId;
+  const loading =
+    Boolean(selectedWorkspaceId) && loadedFor !== selectedWorkspaceId;
 
   useEffect(() => {
     if (!selectedWorkspaceId) return;
@@ -58,7 +59,11 @@ export default function ProjectsPage() {
         eyebrow="WORKSPACE / PROJECTS"
         title="Projects"
         description="Targets and tests are scoped to the selected workspace."
-        action={workspaces.length ? { href: "/app/projects/new", label: "New project" } : undefined}
+        action={
+          workspaces.length
+            ? { href: "/app/projects/new", label: "New project" }
+            : undefined
+        }
       />
       {error && (
         <div role="alert" className="app-alert error">
@@ -82,7 +87,10 @@ export default function ProjectsPage() {
         <EmptyState
           title="No projects in this workspace"
           text="Add the exact origin of a site you own or have permission to test."
-          action={{ href: "/app/projects/new", label: "Create your first project" }}
+          action={{
+            href: "/app/projects/new",
+            label: "Create your first project",
+          }}
         />
       ) : (
         <Panel className="table-panel">
@@ -90,7 +98,8 @@ export default function ProjectsPage() {
             <div>
               <h2>All projects</h2>
               <p>
-                {projects.length} project{projects.length === 1 ? "" : "s"} loaded from the API
+                {projects.length} project{projects.length === 1 ? "" : "s"}{" "}
+                loaded from the API
               </p>
             </div>
             <Link href="/app/projects/new" className="button secondary">
@@ -123,7 +132,9 @@ export default function ProjectsPage() {
                 <span role="cell">
                   <StatusPill value={project.status} />
                 </span>
-                <span role="cell">{new Date(project.created_at).toLocaleDateString()}</span>
+                <span role="cell">
+                  {new Date(project.created_at).toLocaleDateString()}
+                </span>
                 <span role="cell">
                   <ArrowUpRight size={16} aria-label="Open project" />
                 </span>

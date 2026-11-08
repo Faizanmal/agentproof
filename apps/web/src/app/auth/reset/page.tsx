@@ -16,7 +16,8 @@ export default function ResetPasswordPage() {
   const [complete, setComplete] = useState(false);
 
   useEffect(() => {
-    const value = new URLSearchParams(window.location.hash.slice(1)).get("token") ?? "";
+    const value =
+      new URLSearchParams(window.location.hash.slice(1)).get("token") ?? "";
     window.history.replaceState(null, "", window.location.pathname);
     const frame = requestAnimationFrame(() => {
       setToken(value || null);
@@ -32,13 +33,18 @@ export default function ResetPasswordPage() {
       setMessage("This page requires a valid password reset link.");
       return;
     }
-    const password = String(new FormData(event.currentTarget).get("password") ?? "");
+    const password = String(
+      new FormData(event.currentTarget).get("password") ?? "",
+    );
     setBusy(true);
     setMessage("Updating your password…");
     try {
-      const result = await createApiClient().POST("/api/v1/auth/reset-password", {
-        body: { token, password },
-      });
+      const result = await createApiClient().POST(
+        "/api/v1/auth/reset-password",
+        {
+          body: { token, password },
+        },
+      );
       if (result.response.ok) {
         setToken(null);
         setComplete(true);
@@ -87,8 +93,13 @@ export default function ResetPasswordPage() {
               minLength={12}
               maxLength={256}
             />
-            <p className="form-hint">Use at least 12 characters. Never reuse a test-site password here.</p>
-            <button className="button primary auth-submit" disabled={busy || !ready || !token}>
+            <p className="form-hint">
+              Use at least 12 characters. Never reuse a test-site password here.
+            </p>
+            <button
+              className="button primary auth-submit"
+              disabled={busy || !ready || !token}
+            >
               {busy ? "Please wait…" : "Update password"}
             </button>
           </form>

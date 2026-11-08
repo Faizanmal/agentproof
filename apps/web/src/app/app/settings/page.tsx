@@ -9,14 +9,17 @@ import { useWorkspace } from "@/components/workspace-context";
 type Identity = components["schemas"]["Identity"];
 type Member = components["schemas"]["MemberView"];
 export default function SettingsPage() {
-  const { workspaces, selectedWorkspaceId, setSelectedWorkspaceId } = useWorkspace();
+  const { workspaces, selectedWorkspaceId, setSelectedWorkspaceId } =
+    useWorkspace();
   const [identity, setIdentity] = useState<Identity | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [workspaceName, setWorkspaceName] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  const [devVerificationUrl, setDevVerificationUrl] = useState<string | null>(null);
+  const [devVerificationUrl, setDevVerificationUrl] = useState<string | null>(
+    null,
+  );
 
   useEffect(() => {
     let active = true;
@@ -37,7 +40,10 @@ export default function SettingsPage() {
     const controller = new AbortController();
     void createApiClient()
       .GET("/api/v1/workspaces/{workspace_id}/members", {
-        params: { path: { workspace_id: selectedWorkspaceId }, query: { limit: 100 } },
+        params: {
+          path: { workspace_id: selectedWorkspaceId },
+          query: { limit: 100 },
+        },
         signal: controller.signal,
       })
       .then(({ data }) => {
@@ -61,17 +67,28 @@ export default function SettingsPage() {
     setMessage("");
     setError("");
     try {
-      const result = await createApiClient(user.csrf_token).POST("/api/v1/workspaces", {
-        body: { name: workspaceName.trim() },
-      });
+      const result = await createApiClient(user.csrf_token).POST(
+        "/api/v1/workspaces",
+        {
+          body: { name: workspaceName.trim() },
+        },
+      );
       if (!result.data) {
-        throw new Error(`Workspace could not be created (HTTP ${result.response.status}).`);
+        throw new Error(
+          `Workspace could not be created (HTTP ${result.response.status}).`,
+        );
       }
-      setMessage("Workspace created. Reload this page to refresh the workspace switcher.");
+      setMessage(
+        "Workspace created. Reload this page to refresh the workspace switcher.",
+      );
       setWorkspaceName("");
       location.reload();
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Workspace service unavailable.");
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "Workspace service unavailable.",
+      );
     } finally {
       setBusy(false);
     }
@@ -92,9 +109,12 @@ export default function SettingsPage() {
         "/api/v1/auth/resend-verification",
       );
       if (!result.data) {
-        const code = typeof result.error === "object" && result.error && "code" in result.error
-          ? String((result.error as { code?: string }).code ?? "")
-          : "";
+        const code =
+          typeof result.error === "object" &&
+          result.error &&
+          "code" in result.error
+            ? String((result.error as { code?: string }).code ?? "")
+            : "";
         throw new Error(
           code === "MAIL_NOT_CONFIGURED"
             ? "Email delivery is not configured. Contact the operator; no verification token was exposed."
@@ -110,7 +130,11 @@ export default function SettingsPage() {
       const refreshed = await getIdentity();
       if (refreshed) setIdentity(refreshed);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Verification service unavailable.");
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "Verification service unavailable.",
+      );
     } finally {
       setBusy(false);
     }
@@ -155,10 +179,14 @@ export default function SettingsPage() {
         {identity && !identity.user.email_verified_at && (
           <>
             <p className="field-note">
-              A one-use verification link is emailed to your account. Request a fresh link if the
-              previous message expired or was never delivered.
+              A one-use verification link is emailed to your account. Request a
+              fresh link if the previous message expired or was never delivered.
             </p>
-            <button className="button secondary" disabled={busy} onClick={resendVerification}>
+            <button
+              className="button secondary"
+              disabled={busy}
+              onClick={resendVerification}
+            >
               {busy ? "Sending…" : "Resend verification email"}
             </button>
             {devVerificationUrl && (
@@ -175,13 +203,17 @@ export default function SettingsPage() {
         <div className="panel-heading">
           <div>
             <h2>Workspace membership</h2>
-            <p>Your workspace access is loaded from server-side membership records.</p>
+            <p>
+              Your workspace access is loaded from server-side membership
+              records.
+            </p>
           </div>
         </div>
         {workspaces.length ? (
           <div className="membership-list">
             {workspaces.map((workspace) => {
-              const workspaceMembers = workspace.id === selectedWorkspaceId ? visibleMembers : [];
+              const workspaceMembers =
+                workspace.id === selectedWorkspaceId ? visibleMembers : [];
               const role = workspaceMembers.find(
                 (member) => member.user_id === identity?.user.id,
               )?.role;
@@ -191,7 +223,9 @@ export default function SettingsPage() {
                   key={workspace.id}
                   onClick={() => setSelectedWorkspaceId(workspace.id)}
                 >
-                  <span className="workspace-avatar">{workspace.name.slice(0, 1).toUpperCase()}</span>
+                  <span className="workspace-avatar">
+                    {workspace.name.slice(0, 1).toUpperCase()}
+                  </span>
                   <span>
                     <strong>{workspace.name}</strong>
                     <small>
@@ -208,7 +242,10 @@ export default function SettingsPage() {
         ) : (
           <p className="text-muted">No workspace memberships yet.</p>
         )}
-        <form className="app-form create-workspace-form" onSubmit={createWorkspace}>
+        <form
+          className="app-form create-workspace-form"
+          onSubmit={createWorkspace}
+        >
           <label htmlFor="workspace-name">Create a workspace</label>
           <input
             id="workspace-name"
@@ -231,9 +268,17 @@ export default function SettingsPage() {
           </div>
         </div>
         <ul className="security-list">
-          <li>Access and refresh tokens are held in secure, HTTP-only cookies.</li>
-          <li>Mutation requests use a session-bound CSRF token held only in memory.</li>
-          <li>Stored test credentials are encrypted and write-only in the interface.</li>
+          <li>
+            Access and refresh tokens are held in secure, HTTP-only cookies.
+          </li>
+          <li>
+            Mutation requests use a session-bound CSRF token held only in
+            memory.
+          </li>
+          <li>
+            Stored test credentials are encrypted and write-only in the
+            interface.
+          </li>
           <li>Run evidence is private and requires workspace authorization.</li>
         </ul>
       </Panel>

@@ -23,25 +23,40 @@ export function ProjectRuns() {
     const projectId = id;
     const api = createApiClient();
     void Promise.all([
-      api.GET("/api/v1/projects/{project_id}", { params: { path: { project_id: projectId } }, signal: controller.signal }),
-      api.GET("/api/v1/projects/{project_id}/runs", { params: { path: { project_id: projectId }, query: { limit: 100 } }, signal: controller.signal }),
+      api.GET("/api/v1/projects/{project_id}", {
+        params: { path: { project_id: projectId } },
+        signal: controller.signal,
+      }),
+      api.GET("/api/v1/projects/{project_id}/runs", {
+        params: { path: { project_id: projectId }, query: { limit: 100 } },
+        signal: controller.signal,
+      }),
     ])
       .then(([projectResult, runResult]) => {
         if (controller.signal.aborted) return;
         if (!projectResult.data) {
-          setError(projectResult.response.status === 404 ? "Project not found or forbidden." : "Project could not be loaded.");
+          setError(
+            projectResult.response.status === 404
+              ? "Project not found or forbidden."
+              : "Project could not be loaded.",
+          );
           setLoadedFor(projectId);
           return;
         }
         setProject(projectResult.data);
         setRuns(runResult.data?.data ?? []);
-        if (!runResult.data) setError(`Run history could not load (HTTP ${runResult.response.status}).`);
+        if (!runResult.data)
+          setError(
+            `Run history could not load (HTTP ${runResult.response.status}).`,
+          );
         else setError("");
         setLoadedFor(projectId);
       })
       .catch((reason: unknown) => {
         if (!controller.signal.aborted) {
-          setError(reason instanceof Error ? reason.message : "API unavailable.");
+          setError(
+            reason instanceof Error ? reason.message : "API unavailable.",
+          );
           setLoadedFor(projectId);
         }
       });
@@ -54,7 +69,11 @@ export function ProjectRuns() {
         eyebrow="PROJECT / RUNS"
         title={project ? `${project.name} runs` : "Run history"}
         description="Runs are queued only from approved plans and use this project's verified authorization snapshot."
-        action={project ? { href: `/app/projects/${id}/plans/new`, label: "Create test" } : undefined}
+        action={
+          project
+            ? { href: `/app/projects/${id}/plans/new`, label: "Create test" }
+            : undefined
+        }
       />
       {error && (
         <div className="app-alert error" role="alert">
@@ -67,9 +86,15 @@ export function ProjectRuns() {
         <Panel className="table-panel">
           <div className="run-table">
             {runs.map((run) => (
-              <Link className="run-list-row" href={`/app/runs/${run.id}`} key={run.id}>
+              <Link
+                className="run-list-row"
+                href={`/app/runs/${run.id}`}
+                key={run.id}
+              >
                 <span className="row-main">
-                  <strong>{String(run.summary_json.goal ?? "Approved QA plan")}</strong>
+                  <strong>
+                    {String(run.summary_json.goal ?? "Approved QA plan")}
+                  </strong>
                   <small>
                     Started{" "}
                     {run.started_at
@@ -90,7 +115,10 @@ export function ProjectRuns() {
           text="Create a test plan, review its steps, and approve it before execution can start."
           action={
             project
-              ? { href: `/app/projects/${id}/plans/new`, label: "Create a test plan" }
+              ? {
+                  href: `/app/projects/${id}/plans/new`,
+                  label: "Create a test plan",
+                }
               : { href: "/app/projects", label: "Back to projects" }
           }
         />

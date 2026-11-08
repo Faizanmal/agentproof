@@ -7,6 +7,7 @@ The broker starts this image read-only as UID 10001, with all Linux capabilities
 The runner checks every Playwright HTTP request's origin, allowed path, method and current DNS answers; it refuses non-global IP answers and cross-origin redirects. These checks are defense in depth. Browser hooks cannot prevent raw socket traffic or pin Chromium's DNS result. Until a separately tested VM firewall/egress gateway enforces default-deny and connection-time DNS/IP pinning, public execution is a P0 containment failure. The broker defaults to Docker `--network=none` and public execution must remain disabled.
 
 Credential references currently fail closed because a broker-side one-use credential delivery channel is not connected to execution. No credentials are put into the runner environment. Screenshot artifacts are hashed and reported as metadata; authenticated one-time artifact upload is also not yet connected.
+
 # Chromium browser test gate
 
 From the repository root, use the `browser-test` Docker target documented in

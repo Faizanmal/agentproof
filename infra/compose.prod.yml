@@ -4,7 +4,7 @@ x-service: &service
   security_opt: [no-new-privileges:true]
   logging:
     driver: json-file
-    options: {max-size: 10m, max-file: '3'}
+    options: { max-size: 10m, max-file: "3" }
 x-app: &app
   <<: *service
   env_file: ["${APP_ENV_FILE:?private production env path required}"]
@@ -20,12 +20,18 @@ services:
     cap_drop: [ALL]
     tmpfs: ["/tmp:size=64m,mode=1777"]
     networks: [frontend]
-    environment: {NODE_ENV: production, API_INTERNAL_URL: 'http://api:8000'}
+    environment: { NODE_ENV: production, API_INTERNAL_URL: "http://api:8000" }
     mem_limit: 512m
     cpus: 0.5
     pids_limit: 128
     healthcheck:
-      test: [CMD, node, -e, "fetch('http://127.0.0.1:3000').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      test:
+        [
+          CMD,
+          node,
+          -e,
+          "fetch('http://127.0.0.1:3000').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -33,7 +39,20 @@ services:
   api:
     <<: *app
     image: ${API_IMAGE:?immutable image required}
-    command: [uvicorn, 'agentproof_api.app:create_app', --factory, --host, 0.0.0.0, --port, '8000', --no-access-log, --proxy-headers, --forwarded-allow-ips, '*']
+    command:
+      [
+        uvicorn,
+        "agentproof_api.app:create_app",
+        --factory,
+        --host,
+        0.0.0.0,
+        --port,
+        "8000",
+        --no-access-log,
+        --proxy-headers,
+        --forwarded-allow-ips,
+        "*",
+      ]
     networks: [frontend, backend, outbound]
     volumes:
       - artifacts:/var/lib/agentproof/artifacts
@@ -42,10 +61,16 @@ services:
     cpus: 1.0
     pids_limit: 128
     depends_on:
-      postgres: {condition: service_healthy}
-      redis: {condition: service_healthy}
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
     healthcheck:
-      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health/ready',timeout=3)"]
+      test:
+        [
+          CMD,
+          python,
+          -c,
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health/ready',timeout=3)",
+        ]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -62,7 +87,7 @@ services:
     pids_limit: 128
     stop_grace_period: 120s
     depends_on:
-      api: {condition: service_healthy}
+      api: { condition: service_healthy }
     healthcheck:
       test: [CMD, arq, --check, agentproof_worker.main.WorkerSettings]
       interval: 30s
@@ -73,25 +98,30 @@ services:
     <<: *app
     image: ${API_IMAGE:?immutable image required}
     profiles: [maintenance]
-    restart: 'no'
+    restart: "no"
     command: [alembic, -c, apps/api/alembic.ini, upgrade, head]
     mem_limit: 512m
     cpus: 0.5
     pids_limit: 64
     depends_on:
-      postgres: {condition: service_healthy}
+      postgres: { condition: service_healthy }
   artifacts-init:
     <<: *service
     image: ${API_IMAGE:?immutable image required}
     profiles: [maintenance]
-    restart: 'no'
-    user: '0:0'
+    restart: "no"
+    user: "0:0"
     network_mode: none
     read_only: true
     cap_drop: [ALL]
     cap_add: [CHOWN, FOWNER, DAC_OVERRIDE]
     volumes: [artifacts:/var/lib/agentproof/artifacts]
-    command: [sh, -c, 'chown 10001:10001 /var/lib/agentproof/artifacts && chmod 700 /var/lib/agentproof/artifacts']
+    command:
+      [
+        sh,
+        -c,
+        "chown 10001:10001 /var/lib/agentproof/artifacts && chmod 700 /var/lib/agentproof/artifacts",
+      ]
     mem_limit: 64m
     pids_limit: 16
   postgres:
@@ -105,14 +135,24 @@ services:
     cpus: 1.0
     pids_limit: 128
     healthcheck:
-      test: [CMD-SHELL, 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      test:
+        [CMD-SHELL, 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
       interval: 10s
       timeout: 5s
       retries: 5
   redis:
     <<: *service
     image: redis:7.4.5-bookworm
-    command: [redis-server, --appendonly, 'yes', --maxmemory, 192mb, --maxmemory-policy, noeviction]
+    command:
+      [
+        redis-server,
+        --appendonly,
+        "yes",
+        --maxmemory,
+        192mb,
+        --maxmemory-policy,
+        noeviction,
+      ]
     networks: [backend]
     volumes: [redis:/data]
     mem_limit: 256m
@@ -129,7 +169,7 @@ services:
     environment:
       APP_DOMAIN: ${APP_DOMAIN:?verified HTTPS hostname required}
       ACME_EMAIL: ${ACME_EMAIL:?ACME contact required}
-    ports: ['80:80', '443:443']
+    ports: ["80:80", "443:443"]
     networks: [frontend, outbound]
     read_only: true
     volumes:
@@ -143,16 +183,16 @@ services:
     cpus: 0.5
     pids_limit: 64
     depends_on:
-      api: {condition: service_healthy}
-      web: {condition: service_healthy}
+      api: { condition: service_healthy }
+      web: { condition: service_healthy }
     healthcheck:
-      test: [CMD, wget, -q, -O, /dev/null, 'http://127.0.0.1:2019/config/']
+      test: [CMD, wget, -q, -O, /dev/null, "http://127.0.0.1:2019/config/"]
       interval: 30s
       timeout: 3s
       retries: 3
 networks:
-  frontend: {internal: true}
-  backend: {internal: true}
+  frontend: { internal: true }
+  backend: { internal: true }
   outbound: {}
 volumes:
   postgres: {}

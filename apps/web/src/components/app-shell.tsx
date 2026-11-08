@@ -24,8 +24,18 @@ type Workspace = components["schemas"]["WorkspaceView"];
 
 const navigation = [
   { href: "/app", label: "Overview", icon: LayoutDashboard, member: false },
-  { href: "/app/projects", label: "Projects", icon: FolderKanban, member: true },
-  { href: "/app/findings", label: "Findings", icon: AlertTriangle, member: true },
+  {
+    href: "/app/projects",
+    label: "Projects",
+    icon: FolderKanban,
+    member: true,
+  },
+  {
+    href: "/app/findings",
+    label: "Findings",
+    icon: AlertTriangle,
+    member: true,
+  },
   { href: "/app/settings", label: "Settings", icon: Settings, member: false },
 ];
 
@@ -60,7 +70,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           return;
         }
         setWorkspaces(result.data?.data ?? []);
-        setSelectedWorkspaceId((currentId) => currentId || result.data?.data[0]?.id || "");
+        setSelectedWorkspaceId(
+          (currentId) => currentId || result.data?.data[0]?.id || "",
+        );
         setOffline(!result.response.ok);
       })
       .catch(() => {
@@ -93,9 +105,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         router.refresh();
         return;
       }
-      const code = typeof response.error === "object" && response.error && "code" in response.error
-        ? String((response.error as { code?: string }).code ?? "")
-        : "";
+      const code =
+        typeof response.error === "object" &&
+        response.error &&
+        "code" in response.error
+          ? String((response.error as { code?: string }).code ?? "")
+          : "";
       setMessage(
         code === "CSRF_REJECTED"
           ? "Sign out was rejected by session protection. Refresh the page and try again."
@@ -107,7 +122,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   if (loading) {
-    return <main className="app-loading" role="status">Checking your secure session…</main>;
+    return (
+      <main className="app-loading" role="status">
+        Checking your secure session…
+      </main>
+    );
   }
   if (!identity) {
     return (
@@ -120,50 +139,164 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               ? "AgentProof could not reach the API. Check your connection and retry."
               : "Your session may have expired. Sign in to continue to this workspace."}
           </p>
-          {offline && <button className="button secondary" onClick={() => location.reload()}>Retry connection</button>}
-          {!offline && <Link className="button primary" href={`/login?next=${encodeURIComponent(pathname)}`}>Sign in</Link>}
+          {offline && (
+            <button
+              className="button secondary"
+              onClick={() => location.reload()}
+            >
+              Retry connection
+            </button>
+          )}
+          {!offline && (
+            <Link
+              className="button primary"
+              href={`/login?next=${encodeURIComponent(pathname)}`}
+            >
+              Sign in
+            </Link>
+          )}
         </div>
       </main>
     );
   }
 
-  const visibleNavigation = navigation.filter((item) => !item.member || workspaces.length > 0);
+  const visibleNavigation = navigation.filter(
+    (item) => !item.member || workspaces.length > 0,
+  );
   return (
-    <WorkspaceContext.Provider value={{ workspaces, selectedWorkspaceId, setSelectedWorkspaceId }}>
-    <div className="app-frame">
-      {menuOpen && <button className="app-scrim" aria-label="Close navigation" onClick={() => setMenuOpen(false)} />}
-      <aside className={`app-sidebar ${menuOpen ? "is-open" : ""}`} aria-label="Workspace navigation">
-        <div className="app-brand-row">
-          <Link href="/app" className="app-brand" onClick={() => setMenuOpen(false)}>
-            <span className="app-brand-mark"><ShieldCheck size={19} aria-hidden="true" /></span>
-            <span>AgentProof</span>
-          </Link>
-          <button className="icon-button app-mobile-close" aria-label="Close navigation" onClick={() => setMenuOpen(false)}><X size={18} /></button>
+    <WorkspaceContext.Provider
+      value={{ workspaces, selectedWorkspaceId, setSelectedWorkspaceId }}
+    >
+      <div className="app-frame">
+        {menuOpen && (
+          <button
+            className="app-scrim"
+            aria-label="Close navigation"
+            onClick={() => setMenuOpen(false)}
+          />
+        )}
+        <aside
+          className={`app-sidebar ${menuOpen ? "is-open" : ""}`}
+          aria-label="Workspace navigation"
+        >
+          <div className="app-brand-row">
+            <Link
+              href="/app"
+              className="app-brand"
+              onClick={() => setMenuOpen(false)}
+            >
+              <span className="app-brand-mark">
+                <ShieldCheck size={19} aria-hidden="true" />
+              </span>
+              <span>AgentProof</span>
+            </Link>
+            <button
+              className="icon-button app-mobile-close"
+              aria-label="Close navigation"
+              onClick={() => setMenuOpen(false)}
+            >
+              <X size={18} />
+            </button>
+          </div>
+          <p className="app-workspace-label">WORKSPACE</p>
+          {workspaces.length > 0 ? (
+            <label className="app-workspace-select">
+              <span className="sr-only">Active workspace</span>
+              <span className="workspace-avatar">
+                {workspaces
+                  .find((workspace) => workspace.id === selectedWorkspaceId)
+                  ?.name.slice(0, 1)
+                  .toUpperCase() ?? "A"}
+              </span>
+              <select
+                aria-label="Active workspace"
+                value={selectedWorkspaceId}
+                onChange={(event) => setSelectedWorkspaceId(event.target.value)}
+              >
+                {workspaces.map((workspace) => (
+                  <option key={workspace.id} value={workspace.id}>
+                    {workspace.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            <div className="app-workspace-pill">
+              <span className="workspace-avatar">A</span>
+              <span className="truncate">No workspace yet</span>
+            </div>
+          )}
+          <nav className="app-nav" aria-label="Primary">
+            {visibleNavigation.map(({ href, label, icon: Icon }) => {
+              const active =
+                href === "/app"
+                  ? pathname === href
+                  : pathname === href || pathname.startsWith(`${href}/`);
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  aria-current={active ? "page" : undefined}
+                  className={`app-nav-link ${active ? "active" : ""}`}
+                  onClick={() => setMenuOpen(false)}
+                >
+                  <Icon size={17} aria-hidden="true" />
+                  <span>{label}</span>
+                </Link>
+              );
+            })}
+          </nav>
+          <div className="app-sidebar-bottom">
+            <div className="app-authenticated-user">
+              <span className="user-dot" aria-hidden="true" />
+              <span className="truncate">{identity.user.email}</span>
+            </div>
+            <button className="app-nav-link app-logout" onClick={logout}>
+              <LogOut size={17} aria-hidden="true" />
+              <span>Sign out</span>
+            </button>
+          </div>
+        </aside>
+        <div className="app-main-column">
+          <header className="app-topbar">
+            <button
+              className="icon-button app-mobile-menu"
+              aria-label="Open navigation"
+              onClick={() => setMenuOpen(true)}
+            >
+              <Menu size={20} />
+            </button>
+            <div className="app-breadcrumb">
+              <span>AgentProof</span>
+              <span aria-hidden="true">/</span>
+              <strong>
+                {pathname
+                  .split("/")
+                  .filter(Boolean)
+                  .at(-1)
+                  ?.replaceAll("-", " ") ?? "Overview"}
+              </strong>
+            </div>
+            <div className="app-topbar-actions">
+              <span className="app-auth-status">
+                <Activity size={14} aria-hidden="true" /> Session active
+              </span>
+              <ThemeToggle />
+            </div>
+          </header>
+          {offline && (
+            <div className="app-connection-banner" role="status">
+              API connection interrupted. Data may be out of date.
+            </div>
+          )}
+          {message && (
+            <div className="app-inline-message" role="status">
+              {message}
+            </div>
+          )}
+          <main className="app-content">{children}</main>
         </div>
-        <p className="app-workspace-label">WORKSPACE</p>
-        {workspaces.length > 0 ? <label className="app-workspace-select"><span className="sr-only">Active workspace</span><span className="workspace-avatar">{workspaces.find((workspace) => workspace.id === selectedWorkspaceId)?.name.slice(0, 1).toUpperCase() ?? "A"}</span><select aria-label="Active workspace" value={selectedWorkspaceId} onChange={(event) => setSelectedWorkspaceId(event.target.value)}>{workspaces.map((workspace) => <option key={workspace.id} value={workspace.id}>{workspace.name}</option>)}</select></label> : <div className="app-workspace-pill"><span className="workspace-avatar">A</span><span className="truncate">No workspace yet</span></div>}
-        <nav className="app-nav" aria-label="Primary">
-          {visibleNavigation.map(({ href, label, icon: Icon }) => {
-            const active = href === "/app" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
-            return <Link key={href} href={href} aria-current={active ? "page" : undefined} className={`app-nav-link ${active ? "active" : ""}`} onClick={() => setMenuOpen(false)}><Icon size={17} aria-hidden="true" /><span>{label}</span></Link>;
-          })}
-        </nav>
-        <div className="app-sidebar-bottom">
-          <div className="app-authenticated-user"><span className="user-dot" aria-hidden="true" /><span className="truncate">{identity.user.email}</span></div>
-          <button className="app-nav-link app-logout" onClick={logout}><LogOut size={17} aria-hidden="true" /><span>Sign out</span></button>
-        </div>
-      </aside>
-      <div className="app-main-column">
-        <header className="app-topbar">
-          <button className="icon-button app-mobile-menu" aria-label="Open navigation" onClick={() => setMenuOpen(true)}><Menu size={20} /></button>
-          <div className="app-breadcrumb"><span>AgentProof</span><span aria-hidden="true">/</span><strong>{pathname.split("/").filter(Boolean).at(-1)?.replaceAll("-", " ") ?? "Overview"}</strong></div>
-          <div className="app-topbar-actions"><span className="app-auth-status"><Activity size={14} aria-hidden="true" /> Session active</span><ThemeToggle /></div>
-        </header>
-        {offline && <div className="app-connection-banner" role="status">API connection interrupted. Data may be out of date.</div>}
-        {message && <div className="app-inline-message" role="status">{message}</div>}
-        <main className="app-content">{children}</main>
       </div>
-    </div>
     </WorkspaceContext.Provider>
   );
 }

@@ -62,22 +62,22 @@ On POSIX shells the equivalent cache setting is `export UV_CACHE_DIR="$PWD/.cach
 
 Each Make target maps to `python scripts/manage.py <target>` on every platform.
 
-| Target        | Action                                                                                        |
-| ------------- | --------------------------------------------------------------------------------------------- |
-| `bootstrap`   | Frozen pnpm and uv workspace installation; create local env if absent                         |
-| `dev`         | Start loopback-only API, Next dev server and arq worker; stop all on exit                      |
-| `db-up`       | Start Redis and wait for its health check; use configured local PostgreSQL                    |
-| `migrate`     | Apply Alembic revisions (initial empty baseline)                                              |
-| `test`        | Unit tests and generated OpenAPI freshness check                                              |
-| `lint`        | Ruff, Python formatting, ESLint and Prettier checks                                           |
-| `typecheck`   | Strict mypy, Next type generation and strict TypeScript                                       |
-| `build`       | Production Next build and three Python distributions                                          |
-| `smoke`       | Local HTTP endpoints, UI pages and same-origin proxy; requires both services                  |
-| `integration` | Disposable PostgreSQL migration round-trip and auth/tenant/workflow tests; data services required |
-| `e2e` | Integration gate plus real Chromium runner tests; PostgreSQL, Redis and installed Chromium required |
-| `contracts`   | Export FastAPI OpenAPI and regenerate TS types                                                |
-| `security`    | detect-secrets on tracked and nonignored candidate source files                               |
-| `format`      | Apply Ruff and Prettier formatting                                                            |
+| Target        | Action                                                                                              |
+| ------------- | --------------------------------------------------------------------------------------------------- |
+| `bootstrap`   | Frozen pnpm and uv workspace installation; create local env if absent                               |
+| `dev`         | Start loopback-only API, Next dev server and arq worker; stop all on exit                           |
+| `db-up`       | Start Redis and wait for its health check; use configured local PostgreSQL                          |
+| `migrate`     | Apply Alembic revisions (initial empty baseline)                                                    |
+| `test`        | Unit tests and generated OpenAPI freshness check                                                    |
+| `lint`        | Ruff, Python formatting, ESLint and Prettier checks                                                 |
+| `typecheck`   | Strict mypy, Next type generation and strict TypeScript                                             |
+| `build`       | Production Next build and three Python distributions                                                |
+| `smoke`       | Local HTTP endpoints, UI pages and same-origin proxy; requires both services                        |
+| `integration` | Disposable PostgreSQL migration round-trip and auth/tenant/workflow tests; data services required   |
+| `e2e`         | Integration gate plus real Chromium runner tests; PostgreSQL, Redis and installed Chromium required |
+| `contracts`   | Export FastAPI OpenAPI and regenerate TS types                                                      |
+| `security`    | detect-secrets on tracked and nonignored candidate source files                                     |
+| `format`      | Apply Ruff and Prettier formatting                                                                  |
 
 ```bash
 make lint
@@ -110,12 +110,12 @@ origin to Next.js; no second API routing mechanism is configured. See
 [ADR 0001](docs/adr/0001-architecture.md). Contracts are generated from FastAPI;
 the browser uses a typed same-origin client and holds no API credentials.
 
-| Port | Purpose       | Local binding |
-| ---- | ------------- | ------------- |
-| 3000 | Next.js       | Loopback      |
-| 8000 | FastAPI       | Loopback      |
-| 5432 | Existing local PostgreSQL (not started by default Compose) | user-managed |
-| 6379 | Redis 7       | `127.0.0.1`   |
+| Port | Purpose                                                    | Local binding |
+| ---- | ---------------------------------------------------------- | ------------- |
+| 3000 | Next.js                                                    | Loopback      |
+| 8000 | FastAPI                                                    | Loopback      |
+| 5432 | Existing local PostgreSQL (not started by default Compose) | user-managed  |
+| 6379 | Redis 7                                                    | `127.0.0.1`   |
 
 API, worker and runner Dockerfiles use nonroot runtime users and frozen installs.
 The runner image installs pinned Playwright Chromium; the broker runs as a separate
@@ -233,6 +233,7 @@ for role permissions, token replay behavior, verification, retention and key rot
 The complete request/response/error contract is [OpenAPI](packages/contracts/openapi.json).
 SSE replay uses Last-Event-ID or after_id; follow=false returns currently persisted
 rows without polling. List routes use limit<=100 and signed, scope-bound cursors.
+
 ### Run evidence and reports
 
 Runner traces are the only source of execution assertions. The API imports

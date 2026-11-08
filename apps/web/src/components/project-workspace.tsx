@@ -169,7 +169,9 @@ export function ProjectWorkspace() {
         setMessage("Target origin verified.");
       } else {
         const code =
-          typeof result.error === "object" && result.error && "code" in result.error
+          typeof result.error === "object" &&
+          result.error &&
+          "code" in result.error
             ? String((result.error as { code?: string }).code ?? "")
             : "";
         const messages: Record<string, string> = {
